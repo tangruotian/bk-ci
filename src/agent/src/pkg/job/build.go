@@ -46,6 +46,7 @@ import (
 	"github.com/Tencent/bk-ci/src/agent/src/pkg/util/fileutil"
 	"github.com/Tencent/bk-ci/src/agent/src/pkg/util/httputil"
 	"github.com/Tencent/bk-ci/src/agent/src/pkg/util/systemutil"
+	"github.com/Tencent/bk-ci/src/agent/src/pkg/worker"
 )
 
 const buildIntervalInSeconds = 5
@@ -119,7 +120,11 @@ func DoPollAndBuild() {
 			continue
 		}
 
-		err = runBuild(buildInfo)
+		if config.GAgentConfig.UseGoWorker {
+			err = worker.RunBuild(buildInfo)
+		} else {
+			err = runBuild(buildInfo)
+		}
 		if err != nil {
 			logs.Error("start build failed: ", err.Error())
 		}

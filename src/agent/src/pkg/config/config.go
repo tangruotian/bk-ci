@@ -63,6 +63,7 @@ const (
 	KeyIgnoreLocalIps    = "devops.agent.ignoreLocalIps"
 	KeyBatchInstall      = "devops.agent.batch.install"
 	KeyLogsKeepHours     = "devops.agent.logs.keep.hours"
+	KeyUseGoWorker       = "devops.agent.useGoWorker"
 )
 
 // AgentConfig Agent 配置
@@ -82,6 +83,7 @@ type AgentConfig struct {
 	IgnoreLocalIps    string
 	BatchInstallKey   string
 	LogsKeepHours     int
+	UseGoWorker       bool
 }
 
 // AgentEnv Agent 环境配置
@@ -280,6 +282,8 @@ func LoadAgentConfig() error {
 		logsKeepHours = 96
 	}
 
+	useGoWorker := conf.Section("").Key(KeyUseGoWorker).MustBool(false)
+
 	GAgentConfig.LogsKeepHours = logsKeepHours
 
 	GAgentConfig.BatchInstallKey = strings.TrimSpace(conf.Section("").Key(KeyBatchInstall).String())
@@ -313,6 +317,9 @@ func LoadAgentConfig() error {
 	logs.Info("IgnoreLocalIps: ", GAgentConfig.IgnoreLocalIps)
 	logs.Info("BatchInstallKey: ", GAgentConfig.BatchInstallKey)
 	logs.Info("logsKeepHours: ", GAgentConfig.LogsKeepHours)
+	GAgentConfig.UseGoWorker = useGoWorker
+	logs.Info("useGoWorker: ", GAgentConfig.LogsKeepHours)
+
 	// 初始化 GAgentConfig 写入一次配置, 往文件中写入一次程序中新添加的 key
 	return GAgentConfig.SaveConfig()
 }
