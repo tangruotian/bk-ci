@@ -121,7 +121,7 @@ func DoPollAndBuild() {
 		}
 
 		if config.GAgentConfig.UseGoWorker {
-			err = worker.RunBuild(buildInfo)
+			err = runGoWorkerBuild(buildInfo)
 		} else {
 			err = runBuild(buildInfo)
 		}
@@ -155,6 +155,26 @@ func getBuild() (*api.ThirdPartyBuildInfo, error) {
 	}
 
 	return buildInfo, nil
+}
+
+// runGoWorkerBuild 使用Go版worker启动构建
+func runGoWorkerBuild(buildInfo *api.ThirdPartyBuildInfo) (err error) {
+	// #5806 定义临时目录
+	tmpDir, tmpMkErr := systemutil.MkBuildTmpDir()
+	if tmpMkErr != nil {
+		errMsg := fmt.Sprintf("创建临时目录失败(create tmp directory failed): %s", tmpMkErr.Error())
+		logs.Error(errMsg)
+		workerBuildFinish(&api.ThirdPartyBuildWithStatus{ThirdPartyBuildInfo: *buildInfo, Message: errMsg})
+		return tmpMkErr
+	}
+
+	err = worker.RunBuild(worker.AGENT, buildInfo, &worker.Info{
+		ErrorLogPath: getWorkerErrorMsgFile(buildInfo.BuildId, buildInfo.VmSeqId),
+		LogPrefix:    fmt.Sprintf("%s_%s_agent", buildInfo.BuildId, buildInfo.VmSeqId),
+		TmpDir:       tmpDir,
+	})
+
+	return err
 }
 
 // runBuild 启动构建
