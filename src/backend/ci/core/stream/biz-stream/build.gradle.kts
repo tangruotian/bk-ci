@@ -62,5 +62,13 @@ dependencies {
     // jsonschema
     api("com.networknt:json-schema-validator")
 
-    testImplementation(project(":core:common:common-test"))
+//    testImplementation(project(":core:common:common-test"))
+
+    testImplementation("io.mockk:mockk:1.12.2")
+
+    testImplementation("com.ninja-squad:springmockk:3.1.1")
+    testImplementation("org.mockito:mockito-core:4.8.0")
+    testImplementation("org.mockito:mockito-inline:4.8.0")
+    testImplementation("org.mockito.kotlin:mockito-kotlin:4.0.0")
+    testImplementation("net.bytebuddy:byte-buddy:1.12.9")
 }
