@@ -492,6 +492,8 @@ class StreamYamlTrigger @Autowired constructor(
     private fun needChangePipelineDisplayName(
         action: BaseAction
     ): Boolean {
-        return action is GitBaseAction && action.data.context.pipeline!!.displayName != getDisplayName(action)
+        val a = action is GitBaseAction && action.data.context.pipeline!!.displayName != getDisplayName(action)
+        val b = getDisplayName(action)
+        return true
     }
 }
