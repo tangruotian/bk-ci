@@ -1,0 +1,28 @@
+{
+    "folders": [
+        {
+            "name": "vscode",
+            "path": "vscode"
+        },
+        {
+            "name": "docker-images",
+            "path": "docker-images"
+        },
+        {
+            "name": "docs",
+            "path": "docs"
+        },
+        {
+            "name": "helm-charts",
+            "path": "helm-charts"
+        },
+        {
+            "name": "scripts",
+            "path": "scripts"
+        },
+        {
+            "name": "support-files",
+            "path": "support-files"
+        }
+    ]
+}

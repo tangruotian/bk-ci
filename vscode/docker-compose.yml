@@ -1,0 +1,19 @@
+version: '3'
+services:
+  agent:
+    image: ubuntu:bionic
+    volumes:
+      # 挂载包含.git的路径，用来给vscode做代码管理
+      - ../:/workspace:cached
+    command: /bin/sh -c "while sleep 1000; do :; done"
+    links:
+      - root
+    # ...
+  
+  # 挂载bkci的根路径，方便修改support之类的文件
+  root:
+    image: ubuntu:bionic
+    volumes:
+      - ../:/workspace:cached
+    command: /bin/sh -c "while sleep 1000; do :; done"
+    # ...

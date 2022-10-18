@@ -1,0 +1,10 @@
+{
+	// 存放项目根目录文件的容器，配合vscode/root.code-workspace打开更加方便
+	"name": "root",
+	"dockerComposeFile": [
+		"../vscode/docker-compose.yml"
+	],
+	"service": "root",
+	"shutdownAction": "none",
+	"workspaceFolder": "/workspace"
+}
