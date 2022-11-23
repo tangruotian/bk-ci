@@ -10,6 +10,9 @@ import (
 func InitTask() {
 	go WatchTaskPod()
 	go WatchTaskDeployment()
+	// remoting相关
+	go WatchRemotingTaskDeployment()
+	go WatchRemotingTaskPod()
 }
 
 func okTask(taskId string) {

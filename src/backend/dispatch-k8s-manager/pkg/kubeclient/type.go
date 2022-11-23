@@ -53,6 +53,8 @@ type Container struct {
 	Command      []string
 	VolumeMounts []corev1.VolumeMount
 	Args         []string
+	Ports        []corev1.ContainerPort
+	WorkingDir      string
 }
 
 type DockerSecret struct {

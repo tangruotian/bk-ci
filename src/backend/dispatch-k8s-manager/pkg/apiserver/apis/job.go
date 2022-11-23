@@ -24,7 +24,7 @@ func initJobsApis(r *gin.RouterGroup) {
 // @Accept  json
 // @Product  json
 // @Param  Devops-Token  header  string  true "凭证信息"
-// @Param  builder  body  service.Job  true  "JOB信息"
+// @Param  job  body  service.Job  true  "JOB信息"
 // @Success 200 {object} types.Result{data=service.TaskId} "任务ID"
 // @Router /jobs [post]
 func createJob(c *gin.Context) {

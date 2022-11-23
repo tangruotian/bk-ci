@@ -26,16 +26,18 @@ const (
 type TaskLabelType string
 
 const (
-	JobTaskLabel     TaskLabelType = "job"
-	BuilderTaskLabel TaskLabelType = "builder"
+	JobTaskLabel               TaskLabelType = "job"
+	BuilderTaskLabel           TaskLabelType = "builder"
+	RemotingWorkspaceTaskLabel TaskLabelType = "remotingWs"
 )
 
 // TaskBelong 任务所属资源
 type TaskBelong string
 
 const (
-	TaskBelongBuilder = "builder"
-	TaskBelongJob     = "job"
+	TaskBelongBuilder           = "builder"
+	TaskBelongJob               = "job"
+	TaskBelongRemotingWorkspace = "remotingWs"
 )
 
 type Task struct {

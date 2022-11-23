@@ -22,6 +22,8 @@ func CreateDeployment(dep *Deployment) error {
 			Env:          con.Env,
 			Command:      con.Command,
 			VolumeMounts: con.VolumeMounts,
+			Ports:        con.Ports,
+			WorkingDir:   con.WorkingDir,
 		})
 	}
 

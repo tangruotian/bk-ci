@@ -94,7 +94,7 @@ func WatchTaskDeployment() {
 	for {
 		watcher, err := kubeclient.WatchDeployment(config.Config.Dispatch.Watch.Task.Label)
 		if err != nil {
-			logs.Error("WatchTaskDeployment WatchDeployment error", err)
+			logs.Error("WatchTaskDeployment WatchDeployment error ", err)
 			continue
 		}
 
