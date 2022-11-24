@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -190,8 +191,14 @@ func GetRemotingUrl(workspaceId string) (urls RemotingUrls, err error) {
 		return urls, err
 	}
 
+	// 对可能已经有端口的情况做个兼容
+	ip := config.Config.Gateway.Url
+	if strings.Contains(ip, ":") {
+		ip = strings.Split(ip, ":")[0]
+	}
+
 	for _, port := range svc.Spec.Ports {
-		url := fmt.Sprintf("%s/%d", config.Config.Gateway.Url, port.NodePort)
+		url := fmt.Sprintf("%s:%d", ip, port.NodePort)
 		switch port.Name {
 		case remoting.RemotingServiceWebNodePortName:
 			urls.WebVscodeUrl = url
