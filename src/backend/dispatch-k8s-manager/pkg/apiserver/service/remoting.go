@@ -1,6 +1,7 @@
 package service
 
 import (
+	"disaptch-k8s-manager/pkg/config"
 	"disaptch-k8s-manager/pkg/db/mysql"
 	"disaptch-k8s-manager/pkg/kubeclient"
 	"disaptch-k8s-manager/pkg/remoting"
@@ -162,7 +163,6 @@ func getRemotingEnvs(ws *RemotingWorkspace) (envs []corev1.EnvVar) {
 	return envs
 }
 
-
 func DeleteWorkspace(workspaceId string) (taskId string, err error) {
 	taskId = generateTaskId()
 
@@ -184,11 +184,23 @@ func DeleteWorkspace(workspaceId string) (taskId string, err error) {
 	return taskId, nil
 }
 
-func GetRemotingUrl(workspaceId string) (string, error){
-	svc, err:=kubeclient.GetService("service-"+workspaceId)
-	if err != nil{
-		return "", err
+func GetRemotingUrl(workspaceId string) (urls RemotingUrls, err error) {
+	svc, err := kubeclient.GetService("service-" + workspaceId)
+	if err != nil {
+		return urls, err
 	}
 
-	return svc.
+	for _, port := range svc.Spec.Ports {
+		url := fmt.Sprintf("%s/%d", config.Config.Gateway.Url, port.NodePort)
+		switch port.Name {
+		case remoting.RemotingServiceWebNodePortName:
+			urls.WebVscodeUrl = url
+		case remoting.RemotingServiceSSHNodePortName:
+			urls.SSHUrl = url
+		case remoting.RemotingServiceApiNodePortName:
+			urls.ApiUrl = url
+		}
+	}
+
+	return urls, err
 }

@@ -15,6 +15,7 @@ func initRemotingApis(r *gin.RouterGroup) {
 		{
 			workspace.POST("", createWorkspace)
 			workspace.DELETE("/:workspaceId", deleteWorkspace)
+			workspace.GET("/:workspaceId/urls", getRemotingUrls)
 		}
 	}
 }
@@ -66,6 +67,30 @@ func deleteWorkspace(c *gin.Context) {
 	}
 
 	ok(c, service.TaskId{TaskId: taskId})
+}
+
+// @Tags  remoting
+// @Summary  获取远程开发相关路由
+// @Accept  json
+// @Product  json
+// @Param  Devops-Token  header  string  true "凭证信息"
+// @Param  workspaceId  path  string  true  "工作空间ID"
+// @Success 200 {object} types.Result{data=service.RemotingUrls} "url集合"
+// @Router /remoting/workspaces/{workspaceId}/urls [get]
+func getRemotingUrls(c *gin.Context) {
+	workspaceId := c.Param("workspaceId")
+
+	if !checkWorkspaceId(c, workspaceId) {
+		return
+	}
+
+	urls, err := service.GetRemotingUrl(workspaceId)
+	if err != nil {
+		fail(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	ok(c, urls)
 }
 
 func checkWorkspaceId(c *gin.Context, workspaceId string) bool {

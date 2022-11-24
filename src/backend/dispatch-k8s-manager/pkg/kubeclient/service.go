@@ -30,7 +30,7 @@ func CreateRemotingNodePortService(name, workloadName string) error {
 				},
 				Ports: []corev1.ServicePort{
 					{
-						Name:     "webvscode",
+						Name:     remoting.RemotingServiceWebNodePortName,
 						Protocol: corev1.ProtocolTCP,
 						Port:     remoting.RemotingVscodeWebPort,
 						TargetPort: intstr.IntOrString{
@@ -39,7 +39,7 @@ func CreateRemotingNodePortService(name, workloadName string) error {
 						},
 					},
 					{
-						Name:     "remotingapi",
+						Name:     remoting.RemotingServiceSSHNodePortName,
 						Protocol: corev1.ProtocolTCP,
 						Port:     remoting.RemotingApiPort,
 						TargetPort: intstr.IntOrString{
@@ -48,7 +48,7 @@ func CreateRemotingNodePortService(name, workloadName string) error {
 						},
 					},
 					{
-						Name:     "sshvscode",
+						Name:     remoting.RemotingServiceApiNodePortName,
 						Protocol: corev1.ProtocolTCP,
 						Port:     remoting.RemotingVscodeSSHPort,
 						TargetPort: intstr.IntOrString{

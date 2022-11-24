@@ -19,3 +19,9 @@ type RemotingGitRepo struct {
 	GitRepoName string `json:"gitRepoName"`
 	GitRepoRef  string `json:"gitRepoRef"`
 }
+	
+type RemotingUrls struct {
+	WebVscodeUrl string `json:"webVscodeUrl"`
+	SSHUrl       string `json:"sshUrl"`
+	ApiUrl      string `json:"apiUrl"`
+}

@@ -11,4 +11,7 @@ const (
 	RemotingVscodeWebPort     = 23000
 	RemotingVscodeSSHPort     = 23001
 	RemotingApiPort           = 22999
+	RemotingServiceWebNodePortName = "webvscodeport"
+	RemotingServiceSSHNodePortName = "sshport"
+	RemotingServiceApiNodePortName = "apiport"
 )
