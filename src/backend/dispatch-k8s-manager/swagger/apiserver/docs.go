@@ -328,7 +328,7 @@ const docTemplate = `{
                     },
                     {
                         "description": "JOB信息",
-                        "name": "builder",
+                        "name": "job",
                         "in": "body",
                         "required": true,
                         "schema": {
@@ -554,6 +554,149 @@ const docTemplate = `{
                 }
             }
         },
+        "/remoting/workspaces": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "remoting"
+                ],
+                "summary": "创建工作空间",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "凭证信息",
+                        "name": "Devops-Token",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "工作空间信息",
+                        "name": "workspace",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.RemotingWorkspace"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "任务ID",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/types.Result"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.TaskId"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/remoting/workspaces/{workspaceId}": {
+            "delete": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "remoting"
+                ],
+                "summary": "删除工作空间",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "凭证信息",
+                        "name": "Devops-Token",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "工作空间ID",
+                        "name": "workspaceId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "任务ID",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/types.Result"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.TaskId"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/remoting/workspaces/{workspaceId}/urls": {
+            "get": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "remoting"
+                ],
+                "summary": "获取远程开发相关路由",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "凭证信息",
+                        "name": "Devops-Token",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "工作空间ID",
+                        "name": "workspaceId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "url集合",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/types.Result"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.RemotingUrls"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/tasks/{taskId}/status": {
             "get": {
                 "consumes": [
@@ -618,7 +761,11 @@ const docTemplate = `{
                 },
                 "info": {
                     "description": "构建并推送镜像的具体信息",
-                    "$ref": "#/definitions/service.buildImageInfo"
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/service.buildImageInfo"
+                        }
+                    ]
                 },
                 "name": {
                     "description": "唯一名称",
@@ -627,11 +774,19 @@ const docTemplate = `{
                 },
                 "podNameSelector": {
                     "description": "Pod名称调度",
-                    "$ref": "#/definitions/service.PodNameSelector"
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/service.PodNameSelector"
+                        }
+                    ]
                 },
                 "resource": {
                     "description": "工作负载资源",
-                    "$ref": "#/definitions/service.CommonWorkLoadResource"
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/service.CommonWorkLoadResource"
+                        }
+                    ]
                 }
             }
         },
@@ -675,19 +830,35 @@ const docTemplate = `{
                 },
                 "privateBuilder": {
                     "description": "私有构建机配置",
-                    "$ref": "#/definitions/service.DedicatedBuilder"
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/service.DedicatedBuilder"
+                        }
+                    ]
                 },
                 "registry": {
                     "description": "镜像凭证",
-                    "$ref": "#/definitions/types.Registry"
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/types.Registry"
+                        }
+                    ]
                 },
                 "resource": {
                     "description": "工作负载资源",
-                    "$ref": "#/definitions/service.CommonWorkLoadResource"
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/service.CommonWorkLoadResource"
+                        }
+                    ]
                 },
                 "specialBuilder": {
                     "description": "特殊构建机配置",
-                    "$ref": "#/definitions/service.DedicatedBuilder"
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/service.DedicatedBuilder"
+                        }
+                    ]
                 }
             }
         },
@@ -708,6 +879,27 @@ const docTemplate = `{
                 }
             }
         },
+        "service.BuilderState": {
+            "type": "string",
+            "enum": [
+                "readyToRun",
+                "notExist",
+                "pending",
+                "running",
+                "succeeded",
+                "failed",
+                "unknown"
+            ],
+            "x-enum-varnames": [
+                "BuilderReadyToRun",
+                "BuilderNotExist",
+                "BuilderPending",
+                "BuilderRunning",
+                "BuilderSucceeded",
+                "BuilderFailed",
+                "BuilderUnknown"
+            ]
+        },
         "service.BuilderStatus": {
             "type": "object",
             "properties": {
@@ -715,7 +907,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "status": {
-                    "type": "string"
+                    "$ref": "#/definitions/service.BuilderState"
                 }
             }
         },
@@ -818,17 +1010,46 @@ const docTemplate = `{
                 },
                 "podNameSelector": {
                     "description": "Pod名称调度选项",
-                    "$ref": "#/definitions/service.PodNameSelector"
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/service.PodNameSelector"
+                        }
+                    ]
                 },
                 "registry": {
                     "description": "镜像凭证",
-                    "$ref": "#/definitions/types.Registry"
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/types.Registry"
+                        }
+                    ]
                 },
                 "resource": {
                     "description": "工作负载资源",
-                    "$ref": "#/definitions/service.CommonWorkLoadResource"
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/service.CommonWorkLoadResource"
+                        }
+                    ]
                 }
             }
+        },
+        "service.JobState": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "running",
+                "succeeded",
+                "failed",
+                "unknown"
+            ],
+            "x-enum-varnames": [
+                "JobPending",
+                "JobRunning",
+                "JobSucceeded",
+                "JobFailed",
+                "JobUnknown"
+            ]
         },
         "service.JobStatus": {
             "type": "object",
@@ -840,7 +1061,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "state": {
-                    "type": "string"
+                    "$ref": "#/definitions/service.JobState"
                 }
             }
         },
@@ -860,6 +1081,74 @@ const docTemplate = `{
                 }
             }
         },
+        "service.RemotingGitRepo": {
+            "type": "object",
+            "properties": {
+                "gitRepoName": {
+                    "type": "string"
+                },
+                "gitRepoRef": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.RemotingUrls": {
+            "type": "object",
+            "properties": {
+                "apiUrl": {
+                    "type": "string"
+                },
+                "sshUrl": {
+                    "type": "string"
+                },
+                "webVscodeUrl": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.RemotingUserFile": {
+            "type": "object",
+            "properties": {
+                "from": {
+                    "type": "string"
+                },
+                "to": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.RemotingWorkspace": {
+            "type": "object",
+            "properties": {
+                "gitEmail": {
+                    "type": "string"
+                },
+                "gitRepo": {
+                    "$ref": "#/definitions/service.RemotingGitRepo"
+                },
+                "gitUsername": {
+                    "type": "string"
+                },
+                "userEnvs": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "userFiles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.RemotingUserFile"
+                    }
+                },
+                "userId": {
+                    "type": "string"
+                },
+                "workspaceId": {
+                    "type": "string"
+                }
+            }
+        },
         "service.TaskId": {
             "type": "object",
             "properties": {
@@ -875,7 +1164,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "status": {
-                    "type": "string"
+                    "$ref": "#/definitions/types.TaskState"
                 }
             }
         },
@@ -958,6 +1247,23 @@ const docTemplate = `{
                     "type": "integer"
                 }
             }
+        },
+        "types.TaskState": {
+            "type": "string",
+            "enum": [
+                "waiting",
+                "running",
+                "succeeded",
+                "failed",
+                "unknown"
+            ],
+            "x-enum-varnames": [
+                "TaskWaiting",
+                "TaskRunning",
+                "TaskSucceeded",
+                "TaskFailed",
+                "TaskUnknown"
+            ]
         }
     }
 }`

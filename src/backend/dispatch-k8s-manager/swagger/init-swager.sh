@@ -1,3 +1,4 @@
+#!/bin/bash
 # 安装go-swagger，安装过则跳过
 # go install github.com/swaggo/swag/cmd/swag
 
