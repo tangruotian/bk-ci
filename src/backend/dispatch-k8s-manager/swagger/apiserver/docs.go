@@ -1129,6 +1129,9 @@ const docTemplate = `{
                 "gitUsername": {
                     "type": "string"
                 },
+                "remotingYamlName": {
+                    "type": "string"
+                },
                 "userEnvs": {
                     "type": "object",
                     "additionalProperties": {

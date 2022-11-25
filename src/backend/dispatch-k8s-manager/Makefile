@@ -1,5 +1,5 @@
-LOCAL_REGISTRY=bkci
-LOCAL_IMAGE=kubernetes-manager:0.0.31
+LOCAL_REGISTRY=mirrors.tencent.com
+LOCAL_IMAGE=ruotiantang/kubernetes-manager-debug:0.0.33
 
 CONFIG_DIR=/data/workspace/kubernetes-manager/config
 OUT_DIR=/data/workspace/kubernetes-manager/out
@@ -44,6 +44,10 @@ release.arm64v8: test clean
 	GO111MODULE=on CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
 	go build -ldflags "-X main.configDir=$(CONFIG_DIR) -X main.outDir=$(OUT_DIR) -X main.debug=false" \
 	-o bin/kubernetes-manager-arm64v8 ./cmd/apiserver/apiserver.go
+
+.PHONY: debug.image.amd64
+debug.image.amd64: build.amd64
+	docker build -f ./docker/Dockerfile --build-arg ARCH="amd64" -t $(LOCAL_REGISTRY)/$(LOCAL_IMAGE) .
 
 .PHONY: image.amd64
 image.amd64: release.amd64

@@ -258,6 +258,8 @@ definitions:
         $ref: '#/definitions/service.RemotingGitRepo'
       gitUsername:
         type: string
+      remotingYamlName:
+        type: string
       userEnvs:
         additionalProperties:
           type: string

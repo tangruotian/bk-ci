@@ -145,6 +145,7 @@ func getRemotingEnvs(ws *RemotingWorkspace) (envs []corev1.EnvVar) {
 		"DEVOPS_REMOTING_GIT_REPO_ROOT_PATH":  remoting.VolumeMountPath + "/" + ws.GitRepo.GitRepoName,
 		"DEVOPS_REMOTING_GIT_USERNAME":        ws.GitUsername,
 		"DEVOPS_REMOTING_GIT_EMAIL":           ws.GitEmail,
+		"DEVOPS_REMOTING_YAML_NAME":           ws.RemotingYamlName,
 	}
 	for key, value := range remotingEnvs {
 		envs = append(envs, corev1.EnvVar{
