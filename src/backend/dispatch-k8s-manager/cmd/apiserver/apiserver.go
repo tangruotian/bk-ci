@@ -8,6 +8,7 @@ import (
 	"disaptch-k8s-manager/pkg/db/redis"
 	"disaptch-k8s-manager/pkg/kubeclient"
 	"disaptch-k8s-manager/pkg/logs"
+	"disaptch-k8s-manager/pkg/remoting"
 	"disaptch-k8s-manager/pkg/task"
 	_ "disaptch-k8s-manager/swagger/apiserver"
 	"fmt"
@@ -49,6 +50,11 @@ func main() {
 	informerStopper := make(chan struct{})
 	defer close(informerStopper)
 	if err := kubeclient.InitKubeClient(filepath.Join(configDir, "kubeConfig.yaml"), informerStopper); err != nil {
+		fmt.Printf("init kubenetes client error %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := remoting.InitRemotingConfig(filepath.Join(configDir, "remotingConfig.json")); err != nil {
 		fmt.Printf("init kubenetes client error %v\n", err)
 		os.Exit(1)
 	}
