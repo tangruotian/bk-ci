@@ -7,12 +7,15 @@ import (
 	"disaptch-k8s-manager/pkg/remoting"
 	"disaptch-k8s-manager/pkg/task"
 	"disaptch-k8s-manager/pkg/types"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 )
@@ -57,7 +60,11 @@ func CreateRemotingWorkspace(ws *RemotingWorkspace) (taskId string, err error) {
 		},
 	}
 
-	labels := getRemotingDispatchLabel(ws.WorkspaceID, taskId, types.TaskActionCreate, types.RemotingWorkspaceTaskLabel)
+	labels := getRemotingDispatchLabel(ws.WorkspaceID, ws.UserID, taskId, types.TaskActionCreate, types.RemotingWorkspaceTaskLabel)
+	annoations, err := getRemotingDispatchAnnotations()
+	if err != nil {
+		return "", err
+	}
 
 	// 创建remoting服务
 	go task.DoCreateWorkspace(
@@ -66,12 +73,13 @@ func CreateRemotingWorkspace(ws *RemotingWorkspace) (taskId string, err error) {
 			Name:   ws.WorkspaceID,
 			Labels: labels,
 			MatchLabels: map[string]string{
-				remoting.RemotingCoreLabel: ws.WorkspaceID,
+				remoting.RemotingWorkspaceCoreLabel: ws.WorkspaceID,
 			},
 			Replicas: &replicas,
 			Pod: kubeclient.Pod{
-				Labels:  labels,
-				Volumes: volumes,
+				Labels:      labels,
+				Volumes:     volumes,
+				Annotations: annoations,
 				Containers: []kubeclient.Container{
 					{
 						Image:        remoting.RemotingImage,
@@ -123,29 +131,52 @@ func getWorkspaceVolumeAndMount(
 // TODO: 调试使用，目前先定死label的名称
 func getRemotingDispatchLabel(
 	coreName string,
+	userId string,
 	taskId string,
 	taskAction types.TaskAction,
 	labelType types.TaskLabelType,
 ) map[string]string {
 	labels := map[string]string{}
-	labels[remoting.RemotingCoreLabel] = coreName
+	labels[remoting.RemotingWorkspaceCoreLabel] = coreName
 
 	labels[remoting.RemotingWatchLabel] =
 		fmt.Sprintf("%s-%s-%s", taskId, string(labelType), string(taskAction))
 
+	labels[remoting.KubernetesCoreLabelName] = remoting.KubernetesCoreLabelNameValue
+	labels[remoting.KubernetesOwnerLabel] = userId
+
 	return labels
+}
+
+// TODO: 调试使用目前先写死
+func getRemotingDispatchAnnotations() (map[string]string, error) {
+	var annotations = map[string]string{}
+
+	var publicKeys = &remoting.SSHPublicKeys{}
+	publicKeys.Keys = remoting.RemotingConfig.PublicKeys
+	keysJ, err := json.Marshal(publicKeys)
+	if err != nil {
+		return nil, errors.Wrap(err, "json marsh ssh publickeys error")
+	}
+	keysB := base64.StdEncoding.EncodeToString(keysJ)
+
+	annotations[remoting.KubernetesWorkspaceSSHPublicKeys] = keysB
+
+	return annotations, nil
 }
 
 // TODO：方便调试目前先写死
 func getRemotingEnvs(ws *RemotingWorkspace) (envs []corev1.EnvVar) {
 	// 先添加Remoting需要的环境变量
 	remotingEnvs := map[string]string{
-		"DEVOPS_REMOTING_IDE_PORT":            strconv.Itoa(remoting.RemotingVscodeWebPort),
-		"DEVOPS_REMOTING_WORKSPACE_ROOT_PATH": remoting.VolumeMountPath,
-		"DEVOPS_REMOTING_GIT_REPO_ROOT_PATH":  remoting.VolumeMountPath + "/" + ws.GitRepo.GitRepoName,
-		"DEVOPS_REMOTING_GIT_USERNAME":        ws.GitUsername,
-		"DEVOPS_REMOTING_GIT_EMAIL":           ws.GitEmail,
-		"DEVOPS_REMOTING_YAML_NAME":           ws.RemotingYamlName,
+		"DEVOPS_REMOTING_IDE_PORT":               strconv.Itoa(remoting.RemotingVscodeWebPort),
+		"DEVOPS_REMOTING_WORKSPACE_ROOT_PATH":    remoting.VolumeMountPath,
+		"DEVOPS_REMOTING_GIT_REPO_ROOT_PATH":     remoting.VolumeMountPath + "/" + ws.GitRepo.GitRepoName,
+		"DEVOPS_REMOTING_GIT_USERNAME":           ws.GitUsername,
+		"DEVOPS_REMOTING_GIT_EMAIL":              ws.GitEmail,
+		"DEVOPS_REMOTING_YAML_NAME":              ws.RemotingYamlName,
+		"DEVOPS_REMOTING_DEBUG_ENABLE":           "true",
+		"DEVOPS_REMOTING_WORKSPACE_FIRST_CREATE": "true",
 	}
 	for key, value := range remotingEnvs {
 		envs = append(envs, corev1.EnvVar{

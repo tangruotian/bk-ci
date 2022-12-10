@@ -26,7 +26,7 @@ func CreateRemotingNodePortService(name, workloadName string) error {
 			Spec: corev1.ServiceSpec{
 				Type: corev1.ServiceTypeNodePort,
 				Selector: map[string]string{
-					remoting.RemotingCoreLabel: workloadName,
+					remoting.RemotingWorkspaceCoreLabel: workloadName,
 				},
 				Ports: []corev1.ServicePort{
 					{

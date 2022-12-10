@@ -1,5 +1,5 @@
 LOCAL_REGISTRY=mirrors.tencent.com
-LOCAL_IMAGE=ruotiantang/kubernetes-manager-debug:0.0.33
+LOCAL_IMAGE=ruotiantang/kubernetes-manager-debug:0.0.35
 
 CONFIG_DIR=/data/workspace/kubernetes-manager/config
 OUT_DIR=/data/workspace/kubernetes-manager/out
