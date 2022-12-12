@@ -7,11 +7,12 @@ import (
 	"github.com/pkg/errors"
 )
 
-var RemotingConfig  = &RemotingConfigType{}
+var RemotingConfig = &RemotingConfigType{}
 
 // RemotingConfigType TODO: 临时调试未来需要api获取的都可以放这里
 type RemotingConfigType struct {
 	PublicKeys []string `json:"publicKeys"`
+	Image      string   `json:"image"`
 }
 
 func InitRemotingConfig(path string) error {

@@ -7,7 +7,6 @@ const (
 	HostPath                       = "/data/landun/workspace"
 	RemotingWorkspaceCoreLabel     = "bkci.dispatch.kubenetes.remoting/workspaceID"
 	RemotingWatchLabel             = "bkci.dispatch.kubenetes.remoting/watch-task"
-	RemotingImage                  = "mirrors.tencent.com/ruotiantang/devops-remoting-demo:v4"
 	RemotingVscodeWebPort          = 23000
 	RemotingVscodeSSHPort          = 23001
 	RemotingApiPort                = 22999

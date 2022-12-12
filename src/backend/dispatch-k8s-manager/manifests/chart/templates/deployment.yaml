@@ -98,6 +98,8 @@ spec:
             items:
               - key: config.yaml
                 path: config.yaml
+              - key: remotingConfig.json
+                path: remotingConfig.json
               {{- if .Values.kubeConfig.useKubeConfig}}
               - key: kubeConfig.yaml
                 path: kubeConfig.yaml

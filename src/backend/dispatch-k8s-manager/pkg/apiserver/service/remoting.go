@@ -82,7 +82,7 @@ func CreateRemotingWorkspace(ws *RemotingWorkspace) (taskId string, err error) {
 				Annotations: annoations,
 				Containers: []kubeclient.Container{
 					{
-						Image:        remoting.RemotingImage,
+						Image:        remoting.RemotingConfig.Image,
 						Resources:    *resources,
 						Env:          getRemotingEnvs(ws),
 						VolumeMounts: volumeMounts,
