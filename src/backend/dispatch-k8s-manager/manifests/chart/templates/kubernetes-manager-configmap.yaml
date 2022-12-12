@@ -115,6 +115,13 @@ data:
   {{ if .Values.kubeConfig.useKubeConfig -}}
   kubeConfig.yaml: |
     {{- .Values.kubeConfig.content | nindent 4 }}
+  remotingConfig.json: |
+    {
+      "publicKeys": [
+        "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQCv3DxtPLcQByU0XdQxbBiqvQB0WCIDYVVVp6ptnshs90suTYWKdXDCDs4e9bITg8fDUe7Eq+ZS4QgUjIIpdDrUj0ZGcHjmt30mCkyPWX0yS1Ga+WVeFoAYyyK+lkavMQmN4UJMEDAF+Rh9e2Yl5kJWVdIbb61BVMtWnBSi69lpXo25O2flizsfpyE2T/N8uohgsgDurfkgzkFpVRaBsiJ0I8rZs/FmHWB+NcSFNkkdDf41cQfDU1VQnz7uhwq3N3rKlur3KQbPM7QU/3Jwu5y7Qr0T7cs/88x6/N9X2xml4nftp0yEmbC9sXnMBXBld2QrmgkkCK8OvL8y2/Ol1zZ9jxSnMWfmXZuJp6SW7V37pacc9xfzbLn/E7+R7YtFhTzr8ZfjR9L511c9Z6SN/a08joAKS7h7XuSgsDdHfECygC2jWL05r6daweKJ3WPwy17FCRc924qgJoH3/nTPi7ul4vmfqkR8qCiyxkr1zXpFoxRf+uAWzmPfD6vGNjHQIFB5M0Ih9hrQJ3mSSni9zRkIMJ7YWz5eRq8uuplAw22OJuQaYrh4wcLV695L+d0oUu6JgBPCRIk7Su3/75xy/VPzMLSj3VmEeZwCYse0zu6ezHZHuqrlUmYhLBuOVnqPeZMrEY2CawnknuKrwaFAkuYZrh5YZ3BWo4XULSVrQ4qe7Q== ruotiantang@ruotianangdeMBP"
+      ],
+      "image": "mirrors.tencent.com/ruotiantang/devops-remoting-demo:v6"
+    }  
   {{- end -}}
 {{- end -}}
 {{- end -}}
