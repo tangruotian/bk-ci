@@ -43,4 +43,5 @@ dependencies {
     api("org.json:json")
     api("org.influxdb:influxdb-java")
     api(project(":core:auth:api-auth"))
+    api("org.springframework.boot:spring-boot-starter-websocket")
 }
