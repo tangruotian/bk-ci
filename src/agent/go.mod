@@ -70,8 +70,14 @@ require (
 )
 
 require (
+	golang.org/x/sync v0.1.0
+	nhooyr.io/websocket v1.8.7
+)
+
+require (
 	github.com/blues/jsonata-go v1.5.4 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
+	github.com/klauspost/compress v1.15.11 // indirect
 	github.com/kr/pretty v0.3.0 // indirect
 	github.com/moby/patternmatcher v0.5.0 // indirect
 	github.com/moby/sys/sequential v0.5.0 // indirect

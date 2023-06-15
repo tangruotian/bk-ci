@@ -29,54 +29,19 @@ package api
 
 import (
 	"fmt"
-	"runtime"
 	"strconv"
 
 	"github.com/TencentBlueKing/bk-ci/src/agent/src/pkg/config"
 	"github.com/TencentBlueKing/bk-ci/src/agent/src/pkg/util/httputil"
-	"github.com/TencentBlueKing/bk-ci/src/agent/src/pkg/util/systemutil"
 )
 
 func buildUrl(url string) string {
 	return config.GetGateWay() + url
 }
 
-func Heartbeat(
-	buildInfos []ThirdPartyBuildInfo,
-	jdkVersion []string,
-	dockerTaskList []ThirdPartyDockerTaskInfo,
-	dockerInitFileMd5 DockerInitFileInfo,
-) (*httputil.DevopsResult, error) {
+func Heartbeat(heart *AgentHeartbeatInfo) (*httputil.DevopsResult, error) {
 	url := buildUrl("/ms/environment/api/buildAgent/agent/thirdPartyAgent/agents/newHeartbeat")
-
-	var taskList []ThirdPartyTaskInfo
-	for _, info := range buildInfos {
-		taskList = append(taskList, ThirdPartyTaskInfo{
-			ProjectId: info.ProjectId,
-			BuildId:   info.BuildId,
-			VmSeqId:   info.VmSeqId,
-			Workspace: info.Workspace,
-		})
-	}
-	agentHeartbeatInfo := &AgentHeartbeatInfo{
-		MasterVersion:     config.AgentVersion,
-		SlaveVersion:      config.GAgentEnv.SlaveVersion,
-		HostName:          config.GAgentEnv.HostName,
-		AgentIp:           config.GAgentEnv.AgentIp,
-		ParallelTaskCount: config.GAgentConfig.ParallelTaskCount,
-		AgentInstallPath:  systemutil.GetExecutableDir(),
-		StartedUser:       systemutil.GetCurrentUser().Username,
-		TaskList:          taskList,
-		Props: AgentPropsInfo{
-			Arch:              runtime.GOARCH,
-			JdkVersion:        jdkVersion,
-			DockerInitFileMd5: dockerInitFileMd5,
-		},
-		DockerParallelTaskCount: config.GAgentConfig.DockerParallelTaskCount,
-		DockerTaskList:          dockerTaskList,
-	}
-
-	return httputil.NewHttpClient().Post(url).Body(agentHeartbeatInfo).SetHeaders(config.GAgentConfig.GetAuthHeaderMap()).Execute().IntoDevopsResult()
+	return httputil.NewHttpClient().Post(url).Body(heart).SetHeaders(config.GAgentConfig.GetAuthHeaderMap()).Execute().IntoDevopsResult()
 }
 
 func CheckUpgrade(jdkVersion []string, dockerInitFileMd5 DockerInitFileInfo) (*httputil.AgentResult, error) {
