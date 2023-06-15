@@ -30,6 +30,8 @@ package com.tencent.devops.environment.service.thirdPartyAgent
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
+import com.google.common.cache.Cache
+import com.google.common.cache.CacheBuilder
 import com.tencent.devops.common.api.enums.AgentAction
 import com.tencent.devops.common.api.enums.AgentStatus
 import com.tencent.devops.common.api.exception.CustomException
@@ -38,6 +40,7 @@ import com.tencent.devops.common.api.exception.PermissionForbiddenException
 import com.tencent.devops.common.api.pojo.AgentResult
 import com.tencent.devops.common.api.pojo.OS
 import com.tencent.devops.common.api.pojo.Page
+import com.tencent.devops.common.api.pojo.Result
 import com.tencent.devops.common.api.pojo.agent.NewHeartbeatInfo
 import com.tencent.devops.common.api.util.ApiUtil
 import com.tencent.devops.common.api.util.DateTimeUtil
@@ -49,6 +52,8 @@ import com.tencent.devops.common.api.util.timestamp
 import com.tencent.devops.common.auth.api.AuthPermission
 import com.tencent.devops.common.client.Client
 import com.tencent.devops.common.environment.agent.ThirdPartyAgentHeartbeatUtils
+import com.tencent.devops.common.redis.RedisLock
+import com.tencent.devops.common.redis.RedisOperation
 import com.tencent.devops.common.service.utils.ByteUtils
 import com.tencent.devops.common.service.utils.MessageCodeUtil
 import com.tencent.devops.common.websocket.dispatch.WebSocketDispatcher
@@ -91,6 +96,7 @@ import com.tencent.devops.environment.service.thirdPartyAgent.upgrade.AgentProps
 import com.tencent.devops.environment.utils.FileMD5CacheUtils.getAgentJarFile
 import com.tencent.devops.environment.utils.FileMD5CacheUtils.getFileMD5
 import com.tencent.devops.environment.utils.NodeStringIdUtils
+import com.tencent.devops.environment.websocket.AgentWsHandler
 import com.tencent.devops.model.environment.tables.records.TEnvironmentThirdpartyAgentRecord
 import com.tencent.devops.repository.api.ServiceOauthResource
 import com.tencent.devops.repository.api.scm.ServiceGitResource
@@ -102,6 +108,7 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
 import java.time.LocalDateTime
 import java.util.Date
+import java.util.concurrent.TimeUnit
 import javax.ws.rs.NotFoundException
 import javax.ws.rs.core.Response
 
@@ -127,7 +134,8 @@ class ThirdPartyAgentMgrService @Autowired(required = false) constructor(
     private val agentPropsScope: AgentPropsScope,
     private val webSocketDispatcher: WebSocketDispatcher,
     private val websocketService: NodeWebsocketService,
-    private val envShareProjectDao: EnvShareProjectDao
+    private val envShareProjectDao: EnvShareProjectDao,
+    private val redisOperation: RedisOperation
 ) {
 
     fun getAgentDetailById(userId: String, projectId: String, agentHashId: String): ThirdPartyAgentDetail? {
@@ -1094,7 +1102,34 @@ class ThirdPartyAgentMgrService @Autowired(required = false) constructor(
         return AgentStatus.fromStatus(agentRecord.status)
     }
 
+    private val agentHeartbeatRequestCache: Cache<String, String> = CacheBuilder.newBuilder().maximumSize(10000)
+        .expireAfterWrite(4, TimeUnit.SECONDS).build()
+
     fun newHeartbeat(
+        projectId: String,
+        agentId: String,
+        secretKey: String,
+        newHeartbeatInfo: NewHeartbeatInfo
+    ): Result<HeartbeatResponse> {
+        val requestAgentId = agentHeartbeatRequestCache.getIfPresent(agentId)
+        if (requestAgentId != null) {
+            logger.warn("newHeartbeat|$projectId|$agentId| request too frequently")
+            return Result(1, "request too frequently")
+        } else {
+            val lockKey = "environment:thirdPartyAgent:agentHeartbeatRequestLock_$agentId"
+            val redisLock = RedisLock(redisOperation, lockKey, 1)
+            if (redisLock.tryLock()) {
+                agentHeartbeatRequestCache.put(agentId, agentId)
+            } else {
+                logger.warn("newHeartbeat|$projectId|$agentId| get lock failed, skip")
+                return Result(1, "request too frequently")
+            }
+        }
+
+        return Result(doNewHeartbeat(projectId, agentId, secretKey, newHeartbeatInfo))
+    }
+
+    private fun doNewHeartbeat(
         projectId: String,
         agentHashId: String,
         secretKey: String,

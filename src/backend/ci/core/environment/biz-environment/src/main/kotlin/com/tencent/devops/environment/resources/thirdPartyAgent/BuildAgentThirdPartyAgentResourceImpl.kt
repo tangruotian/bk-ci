@@ -145,22 +145,7 @@ class BuildAgentThirdPartyAgentResourceImpl @Autowired constructor(
     ): Result<HeartbeatResponse> {
         checkParam(projectId, agentId, secretKey)
 
-        val requestAgentId = agentHeartbeatRequestCache.getIfPresent(agentId)
-        if (requestAgentId != null) {
-            logger.warn("newHeartbeat|$projectId|$agentId| request too frequently")
-            return Result(1, "request too frequently")
-        } else {
-            val lockKey = "environment:thirdPartyAgent:agentHeartbeatRequestLock_$agentId"
-            val redisLock = RedisLock(redisOperation, lockKey, 1)
-            if (redisLock.tryLock()) {
-                agentHeartbeatRequestCache.put(agentId, agentId)
-            } else {
-                logger.warn("newHeartbeat|$projectId|$agentId| get lock failed, skip")
-                return Result(1, "request too frequently")
-            }
-        }
-
-        return Result(thirdPartyAgentService.newHeartbeat(projectId, agentId, secretKey, heartbeatInfo))
+        return thirdPartyAgentService.newHeartbeat(projectId, agentId, secretKey, heartbeatInfo)
     }
 
     override fun getPipelines(projectId: String, agentId: String, secretKey: String): Result<ThirdPartyAgentPipeline?> {

@@ -27,39 +27,17 @@
 
 package com.tencent.devops.environment.websocket
 
-import com.tencent.devops.common.event.annotation.Event
-import com.tencent.devops.common.event.dispatcher.pipeline.mq.MQ
-import com.tencent.devops.common.redis.RedisOperation
-import com.tencent.devops.common.websocket.dispatch.message.NodeMessage
-import com.tencent.devops.common.websocket.dispatch.message.SendMessage
-import com.tencent.devops.common.websocket.dispatch.push.WebsocketPush
-import com.tencent.devops.common.websocket.pojo.NotifyPost
-import com.tencent.devops.common.websocket.pojo.WebSocketType
+import io.swagger.annotations.ApiModel
+import io.swagger.annotations.ApiModelProperty
 
-@Event(exchange = MQ.EXCHANGE_WEBSOCKET_TMP_FANOUT, routeKey = MQ.ROUTE_WEBSOCKET_TMP_EVENT)
-data class NodeWebsocketPush(
-    val projectId: String,
-    override val userId: String,
-    override val pushType: WebSocketType,
-    override val redisOperation: RedisOperation,
-    override var page: String?,
-    override var notifyPost: NotifyPost
-) : WebsocketPush(
-    userId = userId,
-    pushType = pushType,
-    redisOperation = redisOperation,
-    page = page,
-    notifyPost = notifyPost
-) {
-    override fun buildMqMessage(): SendMessage {
-        return NodeMessage(
-                project = projectId,
-                userId = userId,
-                page = page,
-                sessionList = findSession(page!!),
-                notifyPost = notifyPost
-        )
-    }
+@ApiModel("Agent websocket 发送消息的包装，用来区分不同的消息")
+data class AgentWsInfo<out T>(
+    @ApiModelProperty("消息类型", required = true)
+    val type: String,
+    @ApiModelProperty("数据", required = false)
+    val data: T? = null
+)
 
-    override fun buildNotifyMessage(message: SendMessage) = Unit
+enum class AgentWsInfoType {
+    HEARTBEAT
 }

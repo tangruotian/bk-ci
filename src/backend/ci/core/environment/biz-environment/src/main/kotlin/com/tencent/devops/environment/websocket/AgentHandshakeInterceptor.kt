@@ -27,14 +27,11 @@
 
 package com.tencent.devops.environment.websocket
 
-import com.tencent.devops.common.api.auth.AUTH_HEADER_DEVOPS_USER_ID
 import com.tencent.devops.common.redis.RedisOperation
-import com.tencent.devops.common.websocket.utils.WsRedisUtils
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.http.server.ServerHttpRequest
 import org.springframework.http.server.ServerHttpResponse
-import org.springframework.http.server.ServletServerHttpRequest
 import org.springframework.stereotype.Component
 import org.springframework.web.socket.WebSocketHandler
 import org.springframework.web.socket.server.HandshakeInterceptor
@@ -54,6 +51,7 @@ class AgentHandshakeInterceptor @Autowired constructor(
         wsHandler: WebSocketHandler,
         exception: Exception?
     ) {
+        return
         TODO("将连接信息写入Redis")
     }
 
