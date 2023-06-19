@@ -41,7 +41,7 @@ class WebSocketConfig @Autowired constructor(
 ) : WebSocketConfigurer {
 
     override fun registerWebSocketHandlers(registry: WebSocketHandlerRegistry) {
-        registry.addHandler(agentWsHandler, "/env/agent") // 注册handler
+        registry.addHandler(agentWsHandler, "/build/ws/thirdPartyAgent") // 注册handler
             .addInterceptors(agentHandshake) // 添加握手拦截器
             .setAllowedOrigins("*") // 允许非同源访问
     }
