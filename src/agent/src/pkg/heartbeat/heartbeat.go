@@ -28,7 +28,10 @@
 package heartbeat
 
 import (
-	"errors"
+	"context"
+	"fmt"
+	"net/http"
+	"runtime"
 	"sync"
 	"time"
 
@@ -38,7 +41,12 @@ import (
 	"github.com/TencentBlueKing/bk-ci/src/agent/src/pkg/logs"
 	"github.com/TencentBlueKing/bk-ci/src/agent/src/pkg/upgrade"
 	"github.com/TencentBlueKing/bk-ci/src/agent/src/pkg/util"
+	"github.com/TencentBlueKing/bk-ci/src/agent/src/pkg/util/httputil"
 	"github.com/TencentBlueKing/bk-ci/src/agent/src/pkg/util/systemutil"
+	"github.com/pkg/errors"
+	"golang.org/x/sync/errgroup"
+	"nhooyr.io/websocket"
+	"nhooyr.io/websocket/wsjson"
 )
 
 func DoAgentHeartbeat() {
@@ -52,6 +60,79 @@ func DoAgentHeartbeat() {
 	var jdkOnce = &sync.Once{}
 	var dockerfileSyncOnce = &sync.Once{}
 
+	// 先使用websocket做心跳
+	err := webSocketHeartBeat(jdkOnce, dockerfileSyncOnce)
+	if err != nil {
+		logs.Error("websocket error", err)
+	}
+
+	// 报错后使用http
+	httpHeartBeat(jdkOnce, dockerfileSyncOnce)
+}
+
+func webSocketHeartBeat(jdkOnce, dockerfileSyncOnce *sync.Once) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	header := http.Header{}
+	for k, v := range config.GAgentConfig.GetAuthHeaderMap() {
+		header.Add(k, v)
+	}
+
+	url := fmt.Sprintf("wss://%s%s", config.GetGateWay(), "/ms/environment/api/build/ws/thirdPartyAgent")
+	c, _, err := websocket.Dial(ctx, url, &websocket.DialOptions{
+		HTTPHeader: header,
+	})
+	if err != nil {
+		return errors.Wrapf(err, "websocket dial %s error", url)
+	}
+	defer c.Close(websocket.StatusNormalClosure, "")
+
+	errGroup, ctx := errgroup.WithContext(ctx)
+
+	errGroup.Go(func() error {
+		for {
+			result := new(httputil.DevopsResult)
+			err = wsjson.Read(ctx, c, result)
+			if err != nil {
+				return errors.Wrap(err, "read websocket message error")
+			}
+
+			heartbeatResponse, deleted, err := parseHeartbeatResult(result)
+			if err != nil {
+				return err
+			}
+			if deleted {
+				return nil
+			}
+
+			// agent配置
+			changeConfigByHeartbeat(heartbeatResponse)
+
+			logs.Info("agent heartbeat done")
+		}
+	})
+
+	errGroup.Go(func() error {
+		for {
+			heartbeatInfo := createHeartbeatInfo(jdkOnce, dockerfileSyncOnce)
+
+			err = wsjson.Write(ctx, c, heartbeatInfo)
+			if err != nil {
+				return errors.Wrap(err, "write websocket message error")
+			}
+			time.Sleep(10 * time.Second)
+		}
+	})
+
+	if err := errGroup.Wait(); err != nil {
+		logs.Error("websocket read or write error", err)
+	}
+
+	return nil
+}
+
+func httpHeartBeat(jdkOnce, dockerfileSyncOnce *sync.Once) {
 	for {
 		_ = agentHeartbeat(jdkOnce, dockerfileSyncOnce)
 		time.Sleep(10 * time.Second)
@@ -59,6 +140,27 @@ func DoAgentHeartbeat() {
 }
 
 func agentHeartbeat(jdkSyncOnce, dockerfileSyncOnce *sync.Once) error {
+	result, err := api.Heartbeat(createHeartbeatInfo(jdkSyncOnce, dockerfileSyncOnce))
+	if err != nil {
+		logs.Error("agent heartbeat failed: ", err.Error())
+		return errors.New("agent heartbeat failed")
+	}
+	heartbeatResponse, deleted, err := parseHeartbeatResult(result)
+	if err != nil {
+		return err
+	}
+	if deleted {
+		return nil
+	}
+
+	// agent配置
+	changeConfigByHeartbeat(heartbeatResponse)
+
+	logs.Info("agent heartbeat done")
+	return nil
+}
+
+func createHeartbeatInfo(jdkSyncOnce, dockerfileSyncOnce *sync.Once) *api.AgentHeartbeatInfo {
 	// 在第一次启动时同步一次jdk version，防止重启时因为upgrade的执行慢导致了升级jdk
 	var jdkVersion []string
 	jdkSyncOnce.Do(func() {
@@ -70,10 +172,7 @@ func agentHeartbeat(jdkSyncOnce, dockerfileSyncOnce *sync.Once) error {
 		jdkVersion = version
 	})
 	if jdkVersion == nil {
-		version := upgrade.JdkVersion.GetVersion()
-		if version != nil {
-			jdkVersion = version
-		}
+		jdkVersion = upgrade.JdkVersion.GetVersion()
 	}
 
 	// 获取docker的filemd5前也同步一次
@@ -83,35 +182,61 @@ func agentHeartbeat(jdkSyncOnce, dockerfileSyncOnce *sync.Once) error {
 		}
 	})
 
-	result, err := api.Heartbeat(
-		job.GBuildManager.GetInstances(),
-		jdkVersion,
-		job.GBuildDockerManager.GetInstances(),
-		api.DockerInitFileInfo{
-			FileMd5:     upgrade.DockerFileMd5.Md5,
-			NeedUpgrade: upgrade.DockerFileMd5.NeedUpgrade,
+	var taskList []api.ThirdPartyTaskInfo
+	for _, info := range job.GBuildManager.GetInstances() {
+		taskList = append(taskList, api.ThirdPartyTaskInfo{
+			ProjectId: info.ProjectId,
+			BuildId:   info.BuildId,
+			VmSeqId:   info.VmSeqId,
+			Workspace: info.Workspace,
 		})
-	if err != nil {
-		logs.Error("agent heartbeat failed: ", err.Error())
-		return errors.New("agent heartbeat failed")
 	}
+	agentHeartbeatInfo := &api.AgentHeartbeatInfo{
+		MasterVersion:     config.AgentVersion,
+		SlaveVersion:      config.GAgentEnv.SlaveVersion,
+		HostName:          config.GAgentEnv.HostName,
+		AgentIp:           config.GAgentEnv.AgentIp,
+		ParallelTaskCount: config.GAgentConfig.ParallelTaskCount,
+		AgentInstallPath:  systemutil.GetExecutableDir(),
+		StartedUser:       systemutil.GetCurrentUser().Username,
+		TaskList:          taskList,
+		Props: api.AgentPropsInfo{
+			Arch:       runtime.GOARCH,
+			JdkVersion: jdkVersion,
+			DockerInitFileMd5: api.DockerInitFileInfo{
+				FileMd5:     upgrade.DockerFileMd5.Md5,
+				NeedUpgrade: upgrade.DockerFileMd5.NeedUpgrade,
+			},
+		},
+		DockerParallelTaskCount: config.GAgentConfig.DockerParallelTaskCount,
+		DockerTaskList:          job.GBuildDockerManager.GetInstances(),
+	}
+
+	return agentHeartbeatInfo
+}
+
+func parseHeartbeatResult(result *httputil.DevopsResult) (*api.AgentHeartbeatResponse, bool, error) {
 	if result.IsNotOk() {
 		logs.Error("agent heartbeat failed: ", result.Message)
-		return errors.New("agent heartbeat failed")
+		return nil, false, errors.New("agent heartbeat failed")
 	}
 
 	heartbeatResponse := new(api.AgentHeartbeatResponse)
-	err = util.ParseJsonToData(result.Data, &heartbeatResponse)
+	err := util.ParseJsonToData(result.Data, &heartbeatResponse)
 	if err != nil {
 		logs.Error("agent heartbeat failed: ", err.Error())
-		return errors.New("agent heartbeat failed")
+		return nil, false, errors.New("agent heartbeat failed")
 	}
 
 	if heartbeatResponse.AgentStatus == config.AgentStatusDelete {
 		upgrade.UninstallAgent()
-		return nil
+		return nil, true, nil
 	}
 
+	return heartbeatResponse, false, nil
+}
+
+func changeConfigByHeartbeat(heartbeatResponse *api.AgentHeartbeatResponse) {
 	// agent配置
 	configChanged := false
 	if config.GAgentConfig.ParallelTaskCount != heartbeatResponse.ParallelTaskCount {
@@ -170,7 +295,4 @@ func agentHeartbeat(jdkSyncOnce, dockerfileSyncOnce *sync.Once) error {
 			systemutil.ExitProcess(1)
 		}
 	}
-
-	logs.Info("agent heartbeat done")
-	return nil
 }
