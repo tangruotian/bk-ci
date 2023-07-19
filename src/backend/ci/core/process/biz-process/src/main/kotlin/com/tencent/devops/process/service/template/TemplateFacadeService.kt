@@ -107,6 +107,8 @@ import com.tencent.devops.process.pojo.template.TemplateOperationMessage
 import com.tencent.devops.process.pojo.template.TemplateOperationRet
 import com.tencent.devops.process.pojo.template.TemplatePipeline
 import com.tencent.devops.process.pojo.template.TemplatePipelineStatus
+import com.tencent.devops.process.pojo.template.TemplateScopeType
+import com.tencent.devops.process.pojo.template.TemplateStatus
 import com.tencent.devops.process.pojo.template.TemplateType
 import com.tencent.devops.process.pojo.template.TemplateVersion
 import com.tencent.devops.process.service.ParamFacadeService
@@ -137,6 +139,7 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.cloud.context.config.annotation.RefreshScope
 import org.springframework.dao.DuplicateKeyException
 import org.springframework.stereotype.Service
+import java.time.format.DateTimeFormatter
 import kotlin.reflect.full.declaredMemberProperties
 import kotlin.reflect.jvm.isAccessible
 
@@ -554,6 +557,32 @@ class TemplateFacadeService @Autowired constructor(
         return setting
     }
 
+    fun listSettingToTemplate(
+        projectId: String,
+        userId: String,
+        filterByTemplateName: String?,
+        filterByTemplateDesc: String?,
+    ): TemplateListModel {
+        val result = ArrayList<TemplateModel>()
+        val hasManagerPermission = hasManagerPermission(projectId, userId)
+        val count = pipelineSettingDao.fetchTemplateCountByName(
+            dslContext = dslContext,
+            projectId = projectId,
+            filterByTemplateName = filterByTemplateName,
+            filterByTemplateDesc = filterByTemplateDesc
+        )
+        val settings = pipelineSettingDao.fetchTemplateByName(
+            dslContext = dslContext,
+            projectId = projectId,
+            filterByTemplateName = filterByTemplateName,
+            filterByTemplateDesc = filterByTemplateDesc
+        )
+        //TODO
+//        if (settings.isEmpty()) {
+        return TemplateListModel(projectId, hasManagerPermission, result, count)
+//        }
+    }
+
     fun listTemplate(
         projectId: String,
         userId: String,
@@ -561,7 +590,9 @@ class TemplateFacadeService @Autowired constructor(
         storeFlag: Boolean?,
         page: Int? = null,
         pageSize: Int? = null,
-        keywords: String? = null
+        keywords: String? = null,
+        filterByTemplateScopeType: TemplateScopeType? = null,
+        filterByTemplateUpdateUser: String? = null
     ): TemplateListModel {
         logger.info("[$projectId|$userId|$templateType|$storeFlag|$page|$pageSize|$keywords] List template")
         val hasManagerPermission = hasManagerPermission(projectId, userId)
@@ -572,7 +603,10 @@ class TemplateFacadeService @Autowired constructor(
             includePublicFlag = null,
             templateType = templateType,
             templateName = null,
-            storeFlag = storeFlag
+            storeFlag = storeFlag,
+            filterByTemplateScopeType = filterByTemplateScopeType,
+            filterByTemplateUpdateUser = filterByTemplateUpdateUser,
+            templateStatus = TemplateStatus.RELEASED
         )
         val templates = templateDao.listTemplate(
             dslContext = dslContext,
@@ -583,7 +617,11 @@ class TemplateFacadeService @Autowired constructor(
             storeFlag = storeFlag,
             page = page,
             pageSize = pageSize,
-            queryModelFlag = true
+            queryModelFlag = true,
+            filterByTemplateScopeType = filterByTemplateScopeType,
+            filterByTemplateUpdateUser = filterByTemplateUpdateUser,
+            //TODO: 先暂定为搜索列表的都是以发布的流水线，未来看设计新建流水线是草稿还是已发布的流水线
+            templateStatus = TemplateStatus.RELEASED
         )
         logger.info("after get templates")
         fillResult(
@@ -683,7 +721,7 @@ class TemplateFacadeService @Autowired constructor(
                         if (templatePipelineVersion != version) {
                             logger.info(
                                 "The pipeline $templatePipelineId need to upgrade " +
-                                    "from $templatePipelineVersion to $version"
+                                        "from $templatePipelineVersion to $version"
                             )
                             hasInstances2Upgrade = true
                             return@lit
@@ -705,7 +743,13 @@ class TemplateFacadeService @Autowired constructor(
                         associateCodes = associateCodes,
                         associatePipelines = pipelineIds,
                         hasInstance2Upgrade = hasInstances2Upgrade,
-                        hasPermission = hasManagerPermission
+                        hasPermission = hasManagerPermission,
+                        desc = setting?.desc,
+                        templateScopeType = record[tTemplate.SCOPE_TYPE] ?: TemplateScopeType.PIPELINE.name,
+                        updateUser = record[tTemplate.CREATOR],
+                        updateTime = record[tTemplate.UPDATE_TIME].format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")),
+                        // TODO: 等到调试流水线完成再补充
+                        debugPipelineNumb = 0
                     )
                 )
             }
@@ -735,7 +779,8 @@ class TemplateFacadeService @Autowired constructor(
             storeFlag = null,
             page = null,
             pageSize = null,
-            queryModelFlag = queryModelFlag
+            queryModelFlag = queryModelFlag,
+            templateStatus = TemplateStatus.RELEASED
         ) else null
         return srcTemplateRecords?.associateBy { it[tTemplate.ID] }
     }
@@ -753,19 +798,24 @@ class TemplateFacadeService @Autowired constructor(
                             getCode(projectId, repositoryConfig = RepositoryConfigUtils.buildConfig(element))
                                 ?: return@element
                         )
+
                         is GithubElement -> codes.add(
                             getCode(projectId, repositoryConfig = RepositoryConfigUtils.buildConfig(element))
                                 ?: return@element
                         )
+
                         is CodeSvnElement -> codes.add(
                             getCode(projectId, RepositoryConfigUtils.buildConfig(element)) ?: return@element
                         )
+
                         is CodeGitWebHookTriggerElement -> codes.add(
                             getCode(projectId, RepositoryConfigUtils.buildConfig(element)) ?: return@element
                         )
+
                         is CodeGithubWebHookTriggerElement -> codes.add(
                             getCode(projectId, RepositoryConfigUtils.buildConfig(element)) ?: return@element
                         )
+
                         is CodeSVNWebHookTriggerElement -> codes.add(
                             getCode(projectId, RepositoryConfigUtils.buildConfig(element)) ?: return@element
                         )
@@ -795,6 +845,7 @@ class TemplateFacadeService @Autowired constructor(
                     }
                     return result.data!!.url
                 }
+
                 RepositoryType.NAME -> {
                     // 仓库名是以变量来替换的
                     val repositoryName = repositoryConfig.getURLEncodeRepositoryId()
@@ -833,7 +884,8 @@ class TemplateFacadeService @Autowired constructor(
             includePublicFlag = true,
             templateType = templateType,
             templateName = null,
-            storeFlag = null
+            storeFlag = null,
+            templateStatus = TemplateStatus.RELEASED
         )
         val templates = templateDao.listTemplate(
             dslContext = dslContext,
@@ -844,7 +896,8 @@ class TemplateFacadeService @Autowired constructor(
             storeFlag = null,
             page = page,
             pageSize = pageSize,
-            queryModelFlag = true
+            queryModelFlag = true,
+            templateStatus = TemplateStatus.RELEASED
         )
         if (templates == null || templates.isEmpty()) {
             // 如果查询模板列表为空，则不再执行后续逻辑
@@ -1062,9 +1115,10 @@ class TemplateFacadeService @Autowired constructor(
         val templatePipelineRecord = templatePipelineDao.get(dslContext, projectId, pipelineId)
             ?: throw NotFoundException(
                 I18nUtil.getCodeLanMessage(
-                messageCode = ERROR_TEMPLATE_NOT_EXISTS,
-                language = I18nUtil.getLanguage(userId)
-            ))
+                    messageCode = ERROR_TEMPLATE_NOT_EXISTS,
+                    language = I18nUtil.getLanguage(userId)
+                )
+            )
         val template: Model = objectMapper.readValue(
             templateDao.getTemplate(dslContext = dslContext, version = templatePipelineRecord.version).template
         )

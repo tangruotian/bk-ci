@@ -41,12 +41,14 @@ import com.tencent.devops.process.pojo.template.SaveAsTemplateReq
 import com.tencent.devops.process.pojo.template.TemplateId
 import com.tencent.devops.process.pojo.template.TemplateListModel
 import com.tencent.devops.process.pojo.template.TemplateModelDetail
+import com.tencent.devops.process.pojo.template.TemplateScopeType
 import com.tencent.devops.process.pojo.template.TemplateType
 import com.tencent.devops.process.service.template.TemplateFacadeService
 import com.tencent.devops.process.utils.PIPELINE_SETTING_MAX_QUEUE_SIZE_MAX
 import com.tencent.devops.process.utils.PIPELINE_SETTING_MAX_QUEUE_SIZE_MIN
 import com.tencent.devops.process.utils.PIPELINE_SETTING_WAIT_QUEUE_TIME_MINUTE_MAX
 import com.tencent.devops.process.utils.PIPELINE_SETTING_WAIT_QUEUE_TIME_MINUTE_MIN
+import io.swagger.annotations.ApiParam
 import org.springframework.beans.factory.annotation.Autowired
 
 /**
@@ -104,9 +106,20 @@ class UserPTemplateResourceImpl @Autowired constructor(private val templateFacad
         templateType: TemplateType?,
         storeFlag: Boolean?,
         page: Int?,
-        pageSize: Int?
+        pageSize: Int?,
+        filterByTemplateName: String?,
+        filterByTemplateDesc: String?,
+        filterByTemplateScopeType: TemplateScopeType?,
+        filterByTemplateUpdateUser: String?
     ): Result<TemplateListModel> {
-        return Result(templateFacadeService.listTemplate(projectId, userId, templateType, storeFlag, page, pageSize))
+        return Result(templateFacadeService.listTemplate(
+            projectId = projectId,
+            userId = userId,
+            templateType = templateType,
+            storeFlag = storeFlag,
+            page = page,
+            pageSize = pageSize
+        ))
     }
 
     override fun listAllTemplate(

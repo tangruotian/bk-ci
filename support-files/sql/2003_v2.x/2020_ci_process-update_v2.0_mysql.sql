@@ -21,6 +21,33 @@ BEGIN
         ADD COLUMN `POST_INFO` text DEFAULT NULL COMMENT '市场插件的POST关联信息';
     END IF;
 
+    IF NOT EXISTS(SELECT 1
+                  FROM information_schema.COLUMNS
+                  WHERE TABLE_SCHEMA = db
+                    AND TABLE_NAME = 'T_TEMPLATE'
+                    AND COLUMN_NAME = 'SCOPE_TYPE') THEN
+    ALTER TABLE `T_TEMPLATE`
+        ADD COLUMN `SCOPE_TYPE` varchar(32) NULL COMMENT '模板范围类型';
+    END IF;
+
+    IF NOT EXISTS(SELECT 1
+                  FROM information_schema.COLUMNS
+                  WHERE TABLE_SCHEMA = db
+                    AND TABLE_NAME = 'T_TEMPLATE'
+                    AND COLUMN_NAME = 'STATUS') THEN
+    ALTER TABLE `T_TEMPLATE`
+        ADD COLUMN `STATUS` varchar(32) NULL COMMENT '模板状态';
+    END IF;
+
+    IF NOT EXISTS(SELECT 1
+                  FROM information_schema.COLUMNS
+                  WHERE TABLE_SCHEMA = db
+                    AND TABLE_NAME = 'T_TEMPLATE'
+                    AND COLUMN_NAME = 'TEMPLATE_YAML') THEN
+    ALTER TABLE `T_TEMPLATE`
+        ADD COLUMN `TEMPLATE_YAML` mediumtext NULL COMMENT 'YAML 模板';
+    END IF;
+
     COMMIT;
 END <CI_UBF>
 DELIMITER ;

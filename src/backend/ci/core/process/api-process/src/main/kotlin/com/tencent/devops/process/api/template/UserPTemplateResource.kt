@@ -40,6 +40,7 @@ import com.tencent.devops.process.pojo.template.SaveAsTemplateReq
 import com.tencent.devops.process.pojo.template.TemplateId
 import com.tencent.devops.process.pojo.template.TemplateListModel
 import com.tencent.devops.process.pojo.template.TemplateModelDetail
+import com.tencent.devops.process.pojo.template.TemplateScopeType
 import com.tencent.devops.process.pojo.template.TemplateType
 import io.swagger.annotations.Api
 import io.swagger.annotations.ApiOperation
@@ -177,7 +178,15 @@ interface UserPTemplateResource {
         @ApiParam("每页数量", required = false)
         @QueryParam("pageSize")
         @BkField(patternStyle = BkStyleEnum.NUMBER_STYLE, required = false)
-        pageSize: Int?
+        pageSize: Int?,
+        @ApiParam("按模板名称过滤", required = false)
+        filterByTemplateName: String?,
+        @ApiParam("按模板描述过滤", required = false)
+        filterByTemplateDesc: String?,
+        @ApiParam("按模板类型过滤", required = false)
+        filterByTemplateScopeType: TemplateScopeType?,
+        @ApiParam("按模板更新人过滤", required = false)
+        filterByTemplateUpdateUser: String?
     ): Result<TemplateListModel>
 
     @ApiOperation("创建流水线-获取模版列表")

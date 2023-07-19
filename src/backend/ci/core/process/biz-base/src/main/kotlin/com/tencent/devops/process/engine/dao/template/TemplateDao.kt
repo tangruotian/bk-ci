@@ -31,6 +31,8 @@ import com.tencent.devops.common.api.exception.ErrorCodeException
 import com.tencent.devops.model.process.tables.TTemplate
 import com.tencent.devops.model.process.tables.records.TTemplateRecord
 import com.tencent.devops.process.constant.ProcessMessageCode
+import com.tencent.devops.process.pojo.template.TemplateScopeType
+import com.tencent.devops.process.pojo.template.TemplateStatus
 import com.tencent.devops.process.pojo.template.TemplateType
 import com.tencent.devops.store.pojo.common.KEY_CREATE_TIME
 import com.tencent.devops.store.pojo.common.KEY_ID
@@ -378,19 +380,45 @@ class TemplateDao {
         includePublicFlag: Boolean?,
         templateType: TemplateType?,
         templateName: String?,
-        storeFlag: Boolean?
+        storeFlag: Boolean?,
+        filterByTemplateScopeType: TemplateScopeType? = null,
+        filterByTemplateUpdateUser: String? = null,
+        templateStatus: TemplateStatus?
     ): Int {
         with(TTemplate.T_TEMPLATE) {
-            val normalConditions = countTemplateBaseCondition(templateType, templateName, storeFlag)
+            val normalConditions = countTemplateBaseCondition(
+                templateType = templateType,
+                templateName = templateName,
+                storeFlag = storeFlag,
+                filterByTemplateScopeType = filterByTemplateScopeType,
+                templateStatus
+            )
             if (!projectId.isNullOrBlank()) {
                 normalConditions.add(PROJECT_ID.eq(projectId))
             }
+
+            // 最后更新人需要子查询
+            if (!filterByTemplateUpdateUser.isNullOrBlank()) {
+                return countUpdateUserTemplate(
+                    dslContext = dslContext,
+                    conditions = normalConditions,
+                    filterByTemplateUpdateUser = filterByTemplateUpdateUser
+                )
+            }
+
             var count = dslContext.select(DSL.countDistinct(ID))
                 .from(this)
                 .where(normalConditions)
                 .fetchOne(0, Int::class.java)!!
+
             if (true == includePublicFlag) {
-                val publicConditions = countTemplateBaseCondition(templateType, templateName, storeFlag)
+                val publicConditions = countTemplateBaseCondition(
+                    templateType = templateType,
+                    templateName = templateName,
+                    storeFlag = storeFlag,
+                    filterByTemplateScopeType = filterByTemplateScopeType,
+                    templateStatus = templateStatus
+                )
                 publicConditions.add((TYPE.eq(TemplateType.PUBLIC.name)))
                 count += dslContext.select(DSL.countDistinct(ID))
                     .from(this)
@@ -404,7 +432,9 @@ class TemplateDao {
     private fun TTemplate.countTemplateBaseCondition(
         templateType: TemplateType?,
         templateName: String?,
-        storeFlag: Boolean?
+        storeFlag: Boolean?,
+        filterByTemplateScopeType: TemplateScopeType?,
+        templateStatus: TemplateStatus?
     ): MutableList<Condition> {
         val conditions = mutableListOf<Condition>()
         if (templateType != null) {
@@ -416,7 +446,69 @@ class TemplateDao {
         if (storeFlag != null) {
             conditions.add(STORE_FLAG.eq(storeFlag))
         }
+        if (filterByTemplateScopeType != null) {
+            // 兼容旧数据
+            if (filterByTemplateScopeType == TemplateScopeType.PIPELINE) {
+                conditions.add(SCOPE_TYPE.eq(filterByTemplateScopeType.name).or(SCOPE_TYPE.isNull))
+            } else {
+                conditions.add(SCOPE_TYPE.eq(filterByTemplateScopeType.name))
+            }
+        }
+        if (templateStatus != null) {
+            // 兼容就数据
+            if (templateStatus == TemplateStatus.RELEASED) {
+                conditions.add(STATUS.eq(templateStatus.name).or(STATUS.isNull))
+            } else {
+                conditions.add(STATUS.eq(templateStatus.name))
+            }
+        }
         return conditions
+    }
+
+    // 因为需要筛选出最新模板是某个更新人的总数，所以需要单独拿出来走子查询，参考 listTemplateByProjectCondition 函数
+    private fun countUpdateUserTemplate(
+        dslContext: DSLContext,
+        conditions: MutableList<Condition>,
+        filterByTemplateUpdateUser: String
+    ): Int {
+        val tTemplate = TTemplate.T_TEMPLATE
+        val t = dslContext.select(tTemplate.ID.`as`(KEY_ID), DSL.max(tTemplate.CREATED_TIME).`as`(KEY_CREATE_TIME))
+            .from(tTemplate)
+            .where(conditions)
+            .groupBy(tTemplate.ID)
+
+        val baseSelect = dslContext.select(
+            tTemplate.ID,
+            tTemplate.TEMPLATE_NAME,
+            tTemplate.VERSION,
+            tTemplate.VERSION_NAME,
+            tTemplate.TYPE,
+            tTemplate.LOGO_URL,
+            tTemplate.STORE_FLAG,
+            tTemplate.CREATOR,
+            tTemplate.CREATED_TIME,
+            tTemplate.UPDATE_TIME,
+            tTemplate.SRC_TEMPLATE_ID,
+            tTemplate.CATEGORY,
+            tTemplate.PROJECT_ID
+        )
+
+        val baseStep = baseSelect.from(tTemplate)
+            .join(t)
+            .on(
+                tTemplate.ID.eq(t.field(KEY_ID, String::class.java)).and(
+                    tTemplate.CREATED_TIME.eq(
+                        t.field(
+                            KEY_CREATE_TIME,
+                            LocalDateTime::class.java
+                        )
+                    )
+                )
+            )
+            .where(conditions)
+
+
+        return baseStep.and(tTemplate.CREATOR.like("%$filterByTemplateUpdateUser%")).count()
     }
 
     fun listTemplate(
@@ -428,7 +520,10 @@ class TemplateDao {
         storeFlag: Boolean?,
         page: Int?,
         pageSize: Int?,
-        queryModelFlag: Boolean = true
+        queryModelFlag: Boolean = true,
+        filterByTemplateScopeType: TemplateScopeType? = null,
+        filterByTemplateUpdateUser: String? = null,
+        templateStatus: TemplateStatus?
     ): Result<out Record>? {
         val tTemplate = TTemplate.T_TEMPLATE
 
@@ -436,7 +531,8 @@ class TemplateDao {
         if (projectId != null) {
             if (includePublicFlag != null && includePublicFlag) {
                 conditions.add(
-                    tTemplate.PROJECT_ID.eq(projectId).or(tTemplate.PROJECT_ID.eq("").and(tTemplate.TYPE.eq(TemplateType.PUBLIC.name)))
+                    tTemplate.PROJECT_ID.eq(projectId)
+                        .or(tTemplate.PROJECT_ID.eq("").and(tTemplate.TYPE.eq(TemplateType.PUBLIC.name)))
                 )
             } else {
                 conditions.add(tTemplate.PROJECT_ID.eq(projectId))
@@ -452,7 +548,10 @@ class TemplateDao {
             pageSize = pageSize,
             tTemplate = tTemplate,
             conditions = conditions,
-            queryModelFlag = queryModelFlag
+            queryModelFlag = queryModelFlag,
+            filterByTemplateScopeType = filterByTemplateScopeType,
+            filterByTemplateUpdateUser = filterByTemplateUpdateUser,
+            templateStatus = templateStatus
         )
     }
 
@@ -465,7 +564,10 @@ class TemplateDao {
         pageSize: Int?,
         tTemplate: TTemplate,
         conditions: MutableList<Condition>,
-        queryModelFlag: Boolean = true
+        queryModelFlag: Boolean = true,
+        filterByTemplateScopeType: TemplateScopeType?,
+        filterByTemplateUpdateUser: String?,
+        templateStatus: TemplateStatus?
     ): Result<out Record>? {
         if (templateType != null) {
             conditions.add(tTemplate.TYPE.eq(templateType.name))
@@ -476,6 +578,23 @@ class TemplateDao {
         if (storeFlag != null) {
             conditions.add(tTemplate.STORE_FLAG.eq(storeFlag))
         }
+        if (filterByTemplateScopeType != null) {
+            // 兼容旧数据
+            if (filterByTemplateScopeType == TemplateScopeType.PIPELINE) {
+                conditions.add(tTemplate.SCOPE_TYPE.eq(filterByTemplateScopeType.name).or(tTemplate.SCOPE_TYPE.isNull))
+            } else {
+                conditions.add(tTemplate.SCOPE_TYPE.eq(filterByTemplateScopeType.name))
+            }
+        }
+        if (templateStatus != null) {
+            // 兼容就数据
+            if (templateStatus == TemplateStatus.RELEASED) {
+                conditions.add(tTemplate.STATUS.eq(templateStatus.name).or(tTemplate.STATUS.isNull))
+            } else {
+                conditions.add(tTemplate.STATUS.eq(templateStatus.name))
+            }
+        }
+
         val t = dslContext.select(tTemplate.ID.`as`(KEY_ID), DSL.max(tTemplate.CREATED_TIME).`as`(KEY_CREATE_TIME))
             .from(tTemplate)
             .where(conditions)
@@ -514,7 +633,12 @@ class TemplateDao {
                 )
             )
             .where(conditions)
-            .orderBy(tTemplate.WEIGHT.desc(), tTemplate.CREATED_TIME.desc(), tTemplate.VERSION.desc())
+
+        // user 需要先总查询再子查询
+        if (!filterByTemplateUpdateUser.isNullOrBlank()) {
+            baseStep.and(tTemplate.CREATOR.like("%$filterByTemplateUpdateUser%"))
+        }
+        baseStep.orderBy(tTemplate.WEIGHT.desc(), tTemplate.CREATED_TIME.desc(), tTemplate.VERSION.desc())
 
         return if (null != page && null != pageSize) {
             baseStep.limit((page - 1) * pageSize, pageSize).fetch()

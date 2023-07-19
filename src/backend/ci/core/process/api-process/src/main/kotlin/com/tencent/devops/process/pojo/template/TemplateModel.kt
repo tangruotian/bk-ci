@@ -68,5 +68,15 @@ data class TemplateModel(
     @ApiModelProperty("是否有可更新实例", required = true)
     val hasInstance2Upgrade: Boolean,
     @ApiModelProperty("是否有模版操作权限", required = true)
-    val hasPermission: Boolean
+    val hasPermission: Boolean,
+    @ApiModelProperty("模板描述", required = true)
+    val desc: String?,
+    @ApiModelProperty("模板范围类型", required = true)
+    val templateScopeType: String,
+    @ApiModelProperty("模板最新版本更新人")
+    val updateUser: String,
+    @ApiModelProperty("模板最新更新时间")
+    val updateTime: String,
+    @ApiModelProperty("调试流水线个数")
+    val debugPipelineNumb: Int
 )
