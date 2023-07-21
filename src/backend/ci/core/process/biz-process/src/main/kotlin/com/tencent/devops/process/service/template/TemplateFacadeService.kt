@@ -125,10 +125,6 @@ import com.tencent.devops.repository.api.ServiceRepositoryResource
 import com.tencent.devops.store.api.common.ServiceStoreResource
 import com.tencent.devops.store.api.template.ServiceTemplateResource
 import com.tencent.devops.store.pojo.common.enums.StoreTypeEnum
-import java.text.MessageFormat
-import java.time.LocalDateTime
-import javax.ws.rs.NotFoundException
-import javax.ws.rs.core.Response
 import org.jooq.DSLContext
 import org.jooq.Record
 import org.jooq.Result
@@ -139,7 +135,11 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.cloud.context.config.annotation.RefreshScope
 import org.springframework.dao.DuplicateKeyException
 import org.springframework.stereotype.Service
+import java.text.MessageFormat
+import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import javax.ws.rs.NotFoundException
+import javax.ws.rs.core.Response
 import kotlin.reflect.full.declaredMemberProperties
 import kotlin.reflect.jvm.isAccessible
 
@@ -557,32 +557,6 @@ class TemplateFacadeService @Autowired constructor(
         return setting
     }
 
-    fun listSettingToTemplate(
-        projectId: String,
-        userId: String,
-        filterByTemplateName: String?,
-        filterByTemplateDesc: String?,
-    ): TemplateListModel {
-        val result = ArrayList<TemplateModel>()
-        val hasManagerPermission = hasManagerPermission(projectId, userId)
-        val count = pipelineSettingDao.fetchTemplateCountByName(
-            dslContext = dslContext,
-            projectId = projectId,
-            filterByTemplateName = filterByTemplateName,
-            filterByTemplateDesc = filterByTemplateDesc
-        )
-        val settings = pipelineSettingDao.fetchTemplateByName(
-            dslContext = dslContext,
-            projectId = projectId,
-            filterByTemplateName = filterByTemplateName,
-            filterByTemplateDesc = filterByTemplateDesc
-        )
-        //TODO
-//        if (settings.isEmpty()) {
-        return TemplateListModel(projectId, hasManagerPermission, result, count)
-//        }
-    }
-
     fun listTemplate(
         projectId: String,
         userId: String,
@@ -590,13 +564,12 @@ class TemplateFacadeService @Autowired constructor(
         storeFlag: Boolean?,
         page: Int? = null,
         pageSize: Int? = null,
-        keywords: String? = null,
-        filterByTemplateScopeType: TemplateScopeType? = null,
-        filterByTemplateUpdateUser: String? = null
+        keywords: String? = null
     ): TemplateListModel {
         logger.info("[$projectId|$userId|$templateType|$storeFlag|$page|$pageSize|$keywords] List template")
         val hasManagerPermission = hasManagerPermission(projectId, userId)
         val result = ArrayList<TemplateModel>()
+        // 老接口目前的状态都使用已发布和旧数据统一
         val count = templateDao.countTemplate(
             dslContext = dslContext,
             projectId = projectId,
@@ -604,8 +577,10 @@ class TemplateFacadeService @Autowired constructor(
             templateType = templateType,
             templateName = null,
             storeFlag = storeFlag,
-            filterByTemplateScopeType = filterByTemplateScopeType,
-            filterByTemplateUpdateUser = filterByTemplateUpdateUser,
+            filterByTemplateName = null,
+            filterByTemplateDesc = null,
+            filterByTemplateScopeType = null,
+            filterByTemplateUpdateUser = null,
             templateStatus = TemplateStatus.RELEASED
         )
         val templates = templateDao.listTemplate(
@@ -618,9 +593,10 @@ class TemplateFacadeService @Autowired constructor(
             page = page,
             pageSize = pageSize,
             queryModelFlag = true,
-            filterByTemplateScopeType = filterByTemplateScopeType,
-            filterByTemplateUpdateUser = filterByTemplateUpdateUser,
-            //TODO: 先暂定为搜索列表的都是以发布的流水线，未来看设计新建流水线是草稿还是已发布的流水线
+            filterByTemplateName = null,
+            filterByTemplateDesc = null,
+            filterByTemplateScopeType = null,
+            filterByTemplateUpdateUser = null,
             templateStatus = TemplateStatus.RELEASED
         )
         logger.info("after get templates")
@@ -650,7 +626,7 @@ class TemplateFacadeService @Autowired constructor(
      */
     fun fillResult(
         context: DSLContext,
-        templates: Result<out Record>?,
+        templates: List<Record>?,
         hasManagerPermission: Boolean,
         userId: String,
         templateType: TemplateType?,
@@ -661,7 +637,7 @@ class TemplateFacadeService @Autowired constructor(
         result: ArrayList<TemplateModel>,
         projectId: String? = null
     ) {
-        if (templates == null || templates.isEmpty()) {
+        if (templates.isNullOrEmpty()) {
             // 如果查询模板列表为空，则不再执行后续逻辑
             return
         }
@@ -721,7 +697,7 @@ class TemplateFacadeService @Autowired constructor(
                         if (templatePipelineVersion != version) {
                             logger.info(
                                 "The pipeline $templatePipelineId need to upgrade " +
-                                        "from $templatePipelineVersion to $version"
+                                    "from $templatePipelineVersion to $version"
                             )
                             hasInstances2Upgrade = true
                             return@lit
@@ -744,12 +720,12 @@ class TemplateFacadeService @Autowired constructor(
                         associatePipelines = pipelineIds,
                         hasInstance2Upgrade = hasInstances2Upgrade,
                         hasPermission = hasManagerPermission,
-                        desc = setting?.desc,
+                        desc = setting?.desc ?: templateRecord[tTemplate.DESC],
                         templateScopeType = record[tTemplate.SCOPE_TYPE] ?: TemplateScopeType.PIPELINE.name,
                         updateUser = record[tTemplate.CREATOR],
                         updateTime = record[tTemplate.UPDATE_TIME].format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")),
-                        // TODO: 等到调试流水线完成再补充
-                        debugPipelineNumb = 0
+                        // TODO：需要等到代码库功能做完才能有用 setting.pipelineAsCodeSettings 这个字段
+                        gitFileUrl = null
                     )
                 )
             }
@@ -758,7 +734,7 @@ class TemplateFacadeService @Autowired constructor(
 
     private fun getConstrainedSrcTemplates(
         context: DSLContext,
-        templates: Result<out Record>?,
+        templates: List<Record>?,
         templateIdList: MutableSet<String>,
         queryModelFlag: Boolean = true
     ): Map<String, Record>? {

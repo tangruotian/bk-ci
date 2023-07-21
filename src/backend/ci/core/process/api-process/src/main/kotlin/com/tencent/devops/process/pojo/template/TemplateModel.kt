@@ -77,6 +77,6 @@ data class TemplateModel(
     val updateUser: String,
     @ApiModelProperty("模板最新更新时间")
     val updateTime: String,
-    @ApiModelProperty("调试流水线个数")
-    val debugPipelineNumb: Int
+    @ApiModelProperty("模板git仓库跳转链接")
+    val gitFileUrl: String?
 )

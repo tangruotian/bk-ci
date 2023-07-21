@@ -44,6 +44,7 @@ import com.tencent.devops.process.pojo.template.TemplateModelDetail
 import com.tencent.devops.process.pojo.template.TemplateScopeType
 import com.tencent.devops.process.pojo.template.TemplateType
 import com.tencent.devops.process.service.template.TemplateFacadeService
+import com.tencent.devops.process.service.template.TemplatePACService
 import com.tencent.devops.process.utils.PIPELINE_SETTING_MAX_QUEUE_SIZE_MAX
 import com.tencent.devops.process.utils.PIPELINE_SETTING_MAX_QUEUE_SIZE_MIN
 import com.tencent.devops.process.utils.PIPELINE_SETTING_WAIT_QUEUE_TIME_MINUTE_MAX
@@ -56,8 +57,10 @@ import org.springframework.beans.factory.annotation.Autowired
  * 2019-01-08
  */
 @RestResource
-class UserPTemplateResourceImpl @Autowired constructor(private val templateFacadeService: TemplateFacadeService) :
-    UserPTemplateResource {
+class UserPTemplateResourceImpl @Autowired constructor(
+    private val templateFacadeService: TemplateFacadeService,
+    private val templatePacService: TemplatePACService
+): UserPTemplateResource {
 
     override fun createTemplate(userId: String, projectId: String, template: Model): Result<TemplateId> {
         return Result(TemplateId(templateFacadeService.createTemplate(projectId, userId, template)))
@@ -112,13 +115,17 @@ class UserPTemplateResourceImpl @Autowired constructor(private val templateFacad
         filterByTemplateScopeType: TemplateScopeType?,
         filterByTemplateUpdateUser: String?
     ): Result<TemplateListModel> {
-        return Result(templateFacadeService.listTemplate(
+        return Result(templatePacService.listUserTemplate(
             projectId = projectId,
             userId = userId,
             templateType = templateType,
             storeFlag = storeFlag,
             page = page,
-            pageSize = pageSize
+            pageSize = pageSize,
+            filterByTemplateName = filterByTemplateName,
+            filterByTemplateDesc = filterByTemplateDesc,
+            filterByTemplateScopeType = filterByTemplateScopeType,
+            filterByTemplateUpdateUser = filterByTemplateUpdateUser
         ))
     }
 

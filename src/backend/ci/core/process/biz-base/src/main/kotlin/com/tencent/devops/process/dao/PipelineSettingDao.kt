@@ -381,47 +381,4 @@ class PipelineSettingDao {
             return update.execute()
         }
     }
-
-    // 查询 setting 中保存的模板信息总数
-    fun fetchTemplateCountByName(
-        dslContext: DSLContext,
-        projectId: String,
-        filterByTemplateName: String?,
-        filterByTemplateDesc: String?,
-    ):Int {
-        with(TPipelineSetting.T_PIPELINE_SETTING) {
-            val dsl = dslContext.selectFrom(this)
-                .where(PROJECT_ID.eq(projectId))
-                .and(IS_TEMPLATE.eq(true))
-            if (!filterByTemplateName.isNullOrBlank()) {
-                dsl.and(NAME.like("%$filterByTemplateName%"))
-            }
-            if (!filterByTemplateDesc.isNullOrBlank()) {
-                dsl.and(DESC.like("%$filterByTemplateDesc%"))
-            }
-            return dsl.count()
-        }
-    }
-
-
-    // 查询 setting 中保存的模板信息
-    fun fetchTemplateByName(
-        dslContext: DSLContext,
-        projectId: String,
-        filterByTemplateName: String?,
-        filterByTemplateDesc: String?,
-    ):Result<TPipelineSettingRecord>{
-        with(TPipelineSetting.T_PIPELINE_SETTING) {
-            val dsl = dslContext.selectFrom(this)
-                .where(PROJECT_ID.eq(projectId))
-                .and(IS_TEMPLATE.eq(true))
-            if (!filterByTemplateName.isNullOrBlank()) {
-                dsl.and(NAME.like("%$filterByTemplateName%"))
-            }
-            if (!filterByTemplateDesc.isNullOrBlank()) {
-                dsl.and(DESC.like("%$filterByTemplateDesc%"))
-            }
-            return dsl.fetch()
-        }
-    }
 }

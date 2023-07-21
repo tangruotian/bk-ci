@@ -381,6 +381,8 @@ class TemplateDao {
         templateType: TemplateType?,
         templateName: String?,
         storeFlag: Boolean?,
+        filterByTemplateName: String? = null,
+        filterByTemplateDesc: String? = null,
         filterByTemplateScopeType: TemplateScopeType? = null,
         filterByTemplateUpdateUser: String? = null,
         templateStatus: TemplateStatus?
@@ -390,8 +392,10 @@ class TemplateDao {
                 templateType = templateType,
                 templateName = templateName,
                 storeFlag = storeFlag,
+                filterByTemplateName = filterByTemplateName,
+                filterByTemplateDesc = filterByTemplateDesc,
                 filterByTemplateScopeType = filterByTemplateScopeType,
-                templateStatus
+                templateStatus = templateStatus
             )
             if (!projectId.isNullOrBlank()) {
                 normalConditions.add(PROJECT_ID.eq(projectId))
@@ -416,6 +420,8 @@ class TemplateDao {
                     templateType = templateType,
                     templateName = templateName,
                     storeFlag = storeFlag,
+                    filterByTemplateName = filterByTemplateName,
+                    filterByTemplateDesc = filterByTemplateDesc,
                     filterByTemplateScopeType = filterByTemplateScopeType,
                     templateStatus = templateStatus
                 )
@@ -433,6 +439,8 @@ class TemplateDao {
         templateType: TemplateType?,
         templateName: String?,
         storeFlag: Boolean?,
+        filterByTemplateName: String?,
+        filterByTemplateDesc: String?,
         filterByTemplateScopeType: TemplateScopeType?,
         templateStatus: TemplateStatus?
     ): MutableList<Condition> {
@@ -445,6 +453,12 @@ class TemplateDao {
         }
         if (storeFlag != null) {
             conditions.add(STORE_FLAG.eq(storeFlag))
+        }
+        if (!filterByTemplateName.isNullOrBlank()) {
+            conditions.add(TEMPLATE_NAME.like("%$filterByTemplateName%"))
+        }
+        if (!filterByTemplateDesc.isNullOrBlank()) {
+            conditions.add(DESC.like("%$filterByTemplateDesc%"))
         }
         if (filterByTemplateScopeType != null) {
             // 兼容旧数据
@@ -521,6 +535,8 @@ class TemplateDao {
         page: Int?,
         pageSize: Int?,
         queryModelFlag: Boolean = true,
+        filterByTemplateName: String? = null,
+        filterByTemplateDesc: String? = null,
         filterByTemplateScopeType: TemplateScopeType? = null,
         filterByTemplateUpdateUser: String? = null,
         templateStatus: TemplateStatus?
@@ -549,6 +565,8 @@ class TemplateDao {
             tTemplate = tTemplate,
             conditions = conditions,
             queryModelFlag = queryModelFlag,
+            filterByTemplateName = filterByTemplateName,
+            filterByTemplateDesc = filterByTemplateDesc,
             filterByTemplateScopeType = filterByTemplateScopeType,
             filterByTemplateUpdateUser = filterByTemplateUpdateUser,
             templateStatus = templateStatus
@@ -565,6 +583,8 @@ class TemplateDao {
         tTemplate: TTemplate,
         conditions: MutableList<Condition>,
         queryModelFlag: Boolean = true,
+        filterByTemplateName: String?,
+        filterByTemplateDesc: String?,
         filterByTemplateScopeType: TemplateScopeType?,
         filterByTemplateUpdateUser: String?,
         templateStatus: TemplateStatus?
@@ -577,6 +597,12 @@ class TemplateDao {
         }
         if (storeFlag != null) {
             conditions.add(tTemplate.STORE_FLAG.eq(storeFlag))
+        }
+        if (!filterByTemplateName.isNullOrBlank()) {
+            conditions.add(tTemplate.TEMPLATE_NAME.like("%$filterByTemplateName%"))
+        }
+        if (!filterByTemplateDesc.isNullOrBlank()) {
+            conditions.add(tTemplate.DESC.like("%$filterByTemplateDesc%"))
         }
         if (filterByTemplateScopeType != null) {
             // 兼容旧数据
