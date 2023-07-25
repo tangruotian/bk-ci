@@ -61,7 +61,10 @@ class TemplateDao {
         userId: String,
         template: String,
         storeFlag: Boolean,
-        version: Long? = null
+        version: Long? = null,
+        scopeType: TemplateScopeType,
+        status: TemplateStatus,
+        desc: String?
     ): Long {
         with(TTemplate.T_TEMPLATE) {
             val currentTime = LocalDateTime.now()
@@ -76,7 +79,10 @@ class TemplateDao {
                 UPDATE_TIME,
                 TEMPLATE,
                 STORE_FLAG,
-                VERSION
+                VERSION,
+                SCOPE_TYPE,
+                STATUS,
+                DESC
             )
                 .values(
                     projectId,
@@ -88,7 +94,10 @@ class TemplateDao {
                     currentTime,
                     template,
                     storeFlag,
-                    version
+                    version,
+                    scopeType.name,
+                    status.name,
+                    desc
                 )
                 .returning(VERSION)
                 .fetchOne()!!.version
@@ -109,7 +118,10 @@ class TemplateDao {
         srcTemplateId: String?,
         storeFlag: Boolean,
         weight: Int,
-        version: Long? = null
+        version: Long? = null,
+        scopeType: TemplateScopeType,
+        status: TemplateStatus,
+        desc: String?
     ): Long {
         with(TTemplate.T_TEMPLATE) {
             val currentTime = LocalDateTime.now()
@@ -129,7 +141,10 @@ class TemplateDao {
                 SRC_TEMPLATE_ID,
                 STORE_FLAG,
                 WEIGHT,
-                VERSION
+                VERSION,
+                SCOPE_TYPE,
+                STATUS,
+                DESC
             )
                 .values(
                     projectId,
@@ -146,7 +161,10 @@ class TemplateDao {
                     srcTemplateId,
                     storeFlag,
                     weight,
-                    version
+                    version,
+                    scopeType.name,
+                    status.name,
+                    desc
                 )
                 .returning(VERSION)
                 .fetchOne()!!.version
@@ -522,7 +540,8 @@ class TemplateDao {
             .where(conditions)
 
 
-        return baseStep.and(tTemplate.CREATOR.like("%$filterByTemplateUpdateUser%")).count()
+        return baseStep.and(tTemplate.CREATOR.like("%$filterByTemplateUpdateUser%"))
+            .fetchOne(0, Int::class.java)!!
     }
 
     fun listTemplate(
@@ -744,6 +763,23 @@ class TemplateDao {
                 .and(SRC_TEMPLATE_ID.eq(templateId))
                 .and(PROJECT_ID.`in`(projectIds))
                 .fetch()
+        }
+    }
+
+    fun updateNameAndDescById(
+        dslContext: DSLContext,
+        projectId: String,
+        templateId: String,
+        name: String?,
+        desc: String?
+    ): Int {
+        with(TTemplate.T_TEMPLATE) {
+            val dsl = dslContext.update(this)
+                .set(DESC, desc)
+            if (!name.isNullOrBlank()) {
+                dsl.set(TEMPLATE_NAME, name)
+            }
+            return dsl.where(PROJECT_ID.eq(projectId)).and(ID.eq(templateId)).execute()
         }
     }
 }

@@ -208,7 +208,11 @@ class TemplateFacadeService @Autowired constructor(
                 userId = userId,
                 template = JsonUtil.toJson(template, formatted = false),
                 storeFlag = false,
-                version = client.get(ServiceAllocIdResource::class).generateSegmentId(TEMPLATE_BIZ_TAG_NAME).data
+                version = client.get(ServiceAllocIdResource::class).generateSegmentId(TEMPLATE_BIZ_TAG_NAME).data,
+                //TODO: PAC一期 默认创建的都是流水线型和已发布的模板
+                scopeType = TemplateScopeType.PIPELINE,
+                status = TemplateStatus.RELEASED,
+                desc = template.desc
             )
 
             insertTemplateSetting(
@@ -257,7 +261,11 @@ class TemplateFacadeService @Autowired constructor(
                 srcTemplateId = srcTemplateId,
                 storeFlag = false,
                 weight = 0,
-                version = client.get(ServiceAllocIdResource::class).generateSegmentId(TEMPLATE_BIZ_TAG_NAME).data
+                version = client.get(ServiceAllocIdResource::class).generateSegmentId(TEMPLATE_BIZ_TAG_NAME).data,
+                //TODO: PAC一期 默认创建的都是流水线型和已发布的模板
+                scopeType = TemplateScopeType.PIPELINE,
+                status = TemplateStatus.RELEASED,
+                desc = template.desc
             )
 
             if (copyTemplateReq.isCopySetting) {
@@ -314,7 +322,11 @@ class TemplateFacadeService @Autowired constructor(
                 userId = userId,
                 template = template,
                 storeFlag = false,
-                version = client.get(ServiceAllocIdResource::class).generateSegmentId(TEMPLATE_BIZ_TAG_NAME).data
+                version = client.get(ServiceAllocIdResource::class).generateSegmentId(TEMPLATE_BIZ_TAG_NAME).data,
+                //TODO: PAC一期 默认创建的都是流水线型和已发布的模板
+                scopeType = TemplateScopeType.PIPELINE,
+                status = TemplateStatus.RELEASED,
+                desc = null
             )
 
             if (saveAsTemplateReq.isCopySetting) {
@@ -508,7 +520,11 @@ class TemplateFacadeService @Autowired constructor(
                 srcTemplateId = latestTemplate.srcTemplateId,
                 storeFlag = latestTemplate.storeFlag,
                 weight = latestTemplate.weight,
-                version = client.get(ServiceAllocIdResource::class).generateSegmentId(TEMPLATE_BIZ_TAG_NAME).data
+                version = client.get(ServiceAllocIdResource::class).generateSegmentId(TEMPLATE_BIZ_TAG_NAME).data,
+                //TODO: PAC一期 默认创建的都是流水线型和已发布的模板
+                scopeType = TemplateScopeType.PIPELINE,
+                status = TemplateStatus.RELEASED,
+                desc = template.desc
             )
             logger.info("Get the update template version $version")
         }
@@ -531,6 +547,13 @@ class TemplateFacadeService @Autowired constructor(
                 name = setting.pipelineName,
                 projectId = projectId,
                 templateId = templateId
+            )
+            templateDao.updateNameAndDescById(
+                dslContext,
+                projectId,
+                templateId,
+                setting.pipelineName,
+                setting.desc
             )
             saveTemplatePipelineSetting(userId, setting, true)
         }
@@ -697,7 +720,7 @@ class TemplateFacadeService @Autowired constructor(
                         if (templatePipelineVersion != version) {
                             logger.info(
                                 "The pipeline $templatePipelineId need to upgrade " +
-                                    "from $templatePipelineVersion to $version"
+                                        "from $templatePipelineVersion to $version"
                             )
                             hasInstances2Upgrade = true
                             return@lit
@@ -2170,7 +2193,11 @@ class TemplateFacadeService @Autowired constructor(
                     srcTemplateId = templateCode,
                     storeFlag = true,
                     weight = 0,
-                    version = client.get(ServiceAllocIdResource::class).generateSegmentId(TEMPLATE_BIZ_TAG_NAME).data
+                    version = client.get(ServiceAllocIdResource::class).generateSegmentId(TEMPLATE_BIZ_TAG_NAME).data,
+                    //TODO: PAC一期 默认创建的都是流水线型和已发布的模板
+                    scopeType = TemplateScopeType.PIPELINE,
+                    status = TemplateStatus.RELEASED,
+                    desc = null
                 )
                 insertTemplateSetting(
                     context = context,
