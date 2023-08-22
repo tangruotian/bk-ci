@@ -61,6 +61,7 @@ import com.tencent.devops.process.constant.ProcessMessageCode.USER_NEED_PIPELINE
 import com.tencent.devops.process.engine.compatibility.BuildPropertyCompatibilityTools
 import com.tencent.devops.process.engine.dao.PipelineInfoDao
 import com.tencent.devops.process.engine.dao.template.TemplateDao
+import com.tencent.devops.process.engine.pojo.PipelineInfo
 import com.tencent.devops.process.engine.service.PipelineRepositoryService
 import com.tencent.devops.process.engine.utils.PipelineUtils
 import com.tencent.devops.process.jmx.api.ProcessJmxApi
@@ -70,8 +71,9 @@ import com.tencent.devops.process.pojo.PipelineCopy
 import com.tencent.devops.process.pojo.classify.PipelineViewBulkAdd
 import com.tencent.devops.process.pojo.pipeline.DeletePipelineResult
 import com.tencent.devops.process.pojo.pipeline.DeployPipelineResult
-import com.tencent.devops.process.pojo.setting.PipelineModelAndSetting
-import com.tencent.devops.process.pojo.setting.PipelineSetting
+import com.tencent.devops.process.pojo.pipeline.PipelineResourceVersion
+import com.tencent.devops.common.pipeline.pojo.PipelineModelAndSetting
+import com.tencent.devops.common.pipeline.pojo.setting.PipelineSetting
 import com.tencent.devops.process.pojo.template.TemplateType
 import com.tencent.devops.process.service.label.PipelineGroupService
 import com.tencent.devops.process.service.pipeline.PipelineSettingFacadeService
@@ -197,7 +199,7 @@ class PipelineInfoFacadeService @Autowired constructor(
             model = model,
             channelCode = ChannelCode.BS,
             checkPermission = true
-        )
+        ).pipelineId
 
         val newSetting = pipelineSettingFacadeService.rebuildSetting(
             oldSetting = pipelineModelAndSetting.setting,
@@ -208,6 +210,8 @@ class PipelineInfoFacadeService @Autowired constructor(
         // setting pipeline需替换成新流水线的
         pipelineSettingFacadeService.saveSetting(
             userId = userId,
+            projectId = projectId,
+            pipelineId = newSetting.pipelineId,
             setting = newSetting,
             checkPermission = true,
             dispatchPipelineUpdateEvent = false
@@ -247,8 +251,11 @@ class PipelineInfoFacadeService @Autowired constructor(
         buildNo: BuildNo? = null,
         param: List<BuildFormProperty>? = null,
         fixTemplateVersion: Long? = null,
-        useTemplateSettings: Boolean? = false
-    ): String {
+        saveDraft: Boolean? = false,
+        useSubscriptionSettings: Boolean? = false,
+        useLabelSettings: Boolean? = false,
+        useConcurrencyGroup: Boolean? = false
+    ): DeployPipelineResult {
         val watcher =
             Watcher(id = "createPipeline|$projectId|$userId|$channelCode|$checkPermission|$instanceType|$fixPipelineId")
         var success = false
@@ -357,22 +364,25 @@ class PipelineInfoFacadeService @Autowired constructor(
                     model
                 }
                 watcher.start("deployPipeline")
-                pipelineId = pipelineRepositoryService.deployPipeline(
+                val result = pipelineRepositoryService.deployPipeline(
                     model = instance,
                     projectId = projectId,
                     signPipelineId = fixPipelineId,
                     userId = userId,
                     channelCode = channelCode,
                     create = true,
-                    useTemplateSettings = useTemplateSettings,
-                    templateId = model.templateId
-                ).pipelineId
+                    useSubscriptionSettings = useSubscriptionSettings,
+                    useConcurrencyGroup = useConcurrencyGroup,
+                    templateId = templateId,
+                    description = null
+                )
+                pipelineId = result.pipelineId
                 watcher.stop()
 
                 // 先进行模板关联操作
                 if (templateId != null) {
                     watcher.start("addLabel")
-                    if (useTemplateSettings == true) {
+                    if (useLabelSettings == true) {
                         val groups = pipelineGroupService.getGroups(userId, projectId, templateId)
                         val labels = ArrayList<String>()
                         groups.forEach {
@@ -438,7 +448,7 @@ class PipelineInfoFacadeService @Autowired constructor(
                 )
 
                 success = true
-                return pipelineId
+                return result
             } catch (duplicateKeyException: DuplicateKeyException) {
                 logger.info("duplicateKeyException: ${duplicateKeyException.message}")
                 if (pipelineId != null) {
@@ -512,7 +522,12 @@ class PipelineInfoFacadeService @Autowired constructor(
                 pipelineId = pipelineId,
                 pipelineName = model.name
             )
-            return DeployPipelineResult(pipelineId, pipelineName = model.name, version = model.latestVersion)
+            return DeployPipelineResult(
+                pipelineId = pipelineId,
+                pipelineName = model.name,
+                version = model.latestVersion,
+                versionName = null
+            )
         } finally {
             watcher.stop()
             LogUtils.printCostTimeWE(watcher)
@@ -605,7 +620,7 @@ class PipelineInfoFacadeService @Autowired constructor(
                 labels = pipelineCopy.labels
             )
             modelCheckPlugin.clearUpModel(copyMode)
-            val newPipelineId = createPipeline(userId, projectId, copyMode, channelCode)
+            val newPipelineId = createPipeline(userId, projectId, copyMode, channelCode).pipelineId
             val settingInfo = pipelineSettingFacadeService.getSettingInfo(projectId, pipelineId)
             if (settingInfo != null) {
                 // setting pipeline需替换成新流水线的
@@ -618,6 +633,8 @@ class PipelineInfoFacadeService @Autowired constructor(
                 // 复制setting到新流水线
                 pipelineSettingFacadeService.saveSetting(
                     userId = userId,
+                    projectId = projectId,
+                    pipelineId = pipelineId,
                     setting = newSetting,
                     dispatchPipelineUpdateEvent = false,
                     updateLabels = false
@@ -651,10 +668,14 @@ class PipelineInfoFacadeService @Autowired constructor(
         projectId: String,
         pipelineId: String,
         model: Model,
+        yaml: String?,
         channelCode: ChannelCode,
         checkPermission: Boolean = true,
         checkTemplate: Boolean = true,
-        updateLastModifyUser: Boolean? = true
+        updateLastModifyUser: Boolean? = true,
+        savedSetting: PipelineSetting? = null,
+        saveDraft: Boolean? = false,
+        description: String? = null
     ): DeployPipelineResult {
         if (checkTemplate && templateService.isTemplatePipeline(projectId, pipelineId)) {
             throw ErrorCodeException(
@@ -733,7 +754,10 @@ class PipelineInfoFacadeService @Autowired constructor(
                 userId = userId,
                 channelCode = channelCode,
                 create = false,
-                updateLastModifyUser = updateLastModifyUser
+                updateLastModifyUser = updateLastModifyUser,
+                savedSetting = savedSetting,
+                saveDraft = saveDraft,
+                description = description
             )
             if (checkPermission) {
                 pipelinePermissionService.modifyResource(projectId, pipelineId, model.name)
@@ -756,11 +780,33 @@ class PipelineInfoFacadeService @Autowired constructor(
     ) {
         val setting = pipelineSettingFacadeService.userGetSetting(userId, projectId, pipelineId, channelCode)
         setting.pipelineName = name
-        pipelineSettingFacadeService.saveSetting(
+        val savedSetting = pipelineSettingFacadeService.saveSetting(
             userId = userId,
+            projectId = projectId,
+            pipelineId = pipelineId,
             setting = setting,
             checkPermission = true,
             dispatchPipelineUpdateEvent = true
+        )
+        updatePipelineSettingVersion(
+            userId = userId,
+            projectId = setting.projectId,
+            pipelineId = setting.pipelineId,
+            settingVersion = savedSetting.version
+        )
+    }
+
+    fun updatePipelineSettingVersion(
+        userId: String,
+        projectId: String,
+        pipelineId: String,
+        settingVersion: Int
+    ) {
+        pipelineRepositoryService.updateSettingVersion(
+            userId = userId,
+            projectId = projectId,
+            pipelineId = pipelineId,
+            settingVersion = settingVersion
         )
     }
 
@@ -772,29 +818,92 @@ class PipelineInfoFacadeService @Autowired constructor(
         setting: PipelineSetting,
         channelCode: ChannelCode,
         checkPermission: Boolean = true,
-        checkTemplate: Boolean = true
+        checkTemplate: Boolean = true,
+        saveDraft: Boolean? = false
     ): DeployPipelineResult {
+        val savedSetting = pipelineSettingFacadeService.saveSetting(
+            userId = userId,
+            projectId = projectId,
+            pipelineId = pipelineId,
+            setting = setting,
+            checkPermission = false,
+            dispatchPipelineUpdateEvent = false,
+            saveDraft = saveDraft
+        )
         val pipelineResult = editPipeline(
             userId = userId,
             projectId = projectId,
             pipelineId = pipelineId,
             model = model,
+            yaml = null,
             channelCode = channelCode,
             checkPermission = checkPermission,
-            checkTemplate = checkTemplate
+            checkTemplate = checkTemplate,
+            savedSetting = savedSetting,
+            saveDraft = saveDraft
         )
         if (setting.projectId.isBlank()) {
             setting.projectId = projectId
         }
         setting.pipelineId = pipelineResult.pipelineId // fix 用户端可能不传入pipelineId的问题，或者传错的问题
-        pipelineSettingFacadeService.saveSetting(
-            userId = userId,
-            setting = setting,
-            checkPermission = false,
-            version = pipelineResult.version,
-            dispatchPipelineUpdateEvent = false
-        )
+
         return pipelineResult
+    }
+
+    fun getPipelineResourceVersion(
+        userId: String,
+        projectId: String,
+        pipelineId: String,
+        channelCode: ChannelCode,
+        version: Int? = null,
+        checkPermission: Boolean = true,
+        includeDraft: Boolean? = false
+    ): PipelineResourceVersion {
+        if (checkPermission) {
+            val permission = AuthPermission.VIEW
+            pipelinePermissionService.validPipelinePermission(
+                userId = userId,
+                projectId = projectId,
+                pipelineId = pipelineId,
+                permission = permission,
+                message = MessageUtil.getMessageByLocale(
+                    USER_NOT_PERMISSIONS_OPERATE_PIPELINE,
+                    I18nUtil.getLanguage(userId),
+                    arrayOf(
+                        userId,
+                        projectId,
+                        permission.getI18n(I18nUtil.getLanguage(userId)),
+                        pipelineId
+                    )
+                )
+            )
+        }
+
+        val pipelineInfo = pipelineRepositoryService.getPipelineInfo(projectId, pipelineId)
+            ?: throw ErrorCodeException(
+                statusCode = Response.Status.NOT_FOUND.statusCode,
+                errorCode = ProcessMessageCode.ERROR_PIPELINE_NOT_EXISTS
+            )
+
+        if (pipelineInfo.channelCode != channelCode) {
+            throw ErrorCodeException(
+                statusCode = Response.Status.NOT_FOUND.statusCode,
+                errorCode = ProcessMessageCode.ERROR_PIPELINE_CHANNEL_CODE,
+                params = arrayOf(pipelineInfo.channelCode.name)
+            )
+        }
+
+        val resource = pipelineRepositoryService.getPipelineResourceVersion(
+            projectId = projectId,
+            pipelineId = pipelineId,
+            version = version,
+            includeDraft = includeDraft
+        ) ?: throw ErrorCodeException(
+            statusCode = Response.Status.NOT_FOUND.statusCode,
+            errorCode = ProcessMessageCode.ERROR_PIPELINE_MODEL_NOT_EXISTS
+        )
+        val fixedModel = getFixedModel(resource.model, projectId, pipelineId, userId, pipelineInfo)
+        return resource.copy(model = fixedModel)
     }
 
     fun getPipeline(
@@ -803,7 +912,8 @@ class PipelineInfoFacadeService @Autowired constructor(
         pipelineId: String,
         channelCode: ChannelCode,
         version: Int? = null,
-        checkPermission: Boolean = true
+        checkPermission: Boolean = true,
+        includeDraft: Boolean? = false
     ): Model {
         if (checkPermission) {
             val permission = AuthPermission.VIEW
@@ -839,12 +949,26 @@ class PipelineInfoFacadeService @Autowired constructor(
             )
         }
 
-        val model = pipelineRepositoryService.getModel(projectId, pipelineId, version)
-            ?: throw ErrorCodeException(
-                statusCode = Response.Status.NOT_FOUND.statusCode,
-                errorCode = ProcessMessageCode.ERROR_PIPELINE_MODEL_NOT_EXISTS
-            )
+        val model = pipelineRepositoryService.getModel(
+            projectId = projectId,
+            pipelineId = pipelineId,
+            version = version,
+            includeDraft = includeDraft
+        ) ?: throw ErrorCodeException(
+            statusCode = Response.Status.NOT_FOUND.statusCode,
+            errorCode = ProcessMessageCode.ERROR_PIPELINE_MODEL_NOT_EXISTS
+        )
 
+        return getFixedModel(model, projectId, pipelineId, userId, pipelineInfo)
+    }
+
+    private fun getFixedModel(
+        model: Model,
+        projectId: String,
+        pipelineId: String,
+        userId: String,
+        pipelineInfo: PipelineInfo
+    ): Model {
         try {
             val triggerContainer = model.stages[0].containers[0] as TriggerContainer
             val buildNo = triggerContainer.buildNo

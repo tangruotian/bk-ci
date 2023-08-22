@@ -27,8 +27,8 @@
 
 package com.tencent.devops.process.yaml.modelCreate
 
-import com.tencent.devops.common.api.constant.CommonMessageCode.BK_BUILD_MSG_MANUAL
-import com.tencent.devops.common.api.constant.CommonMessageCode.BK_BUILD_MSG_TRIGGERS
+import com.tencent.devops.common.api.constant.CommonMessageCode.BK_BUILD_TRIGGER
+import com.tencent.devops.common.api.constant.CommonMessageCode.BK_MANUAL_TRIGGER
 import com.tencent.devops.common.api.pojo.PipelineAsCodeSettings
 import com.tencent.devops.common.client.Client
 import com.tencent.devops.common.pipeline.Model
@@ -43,9 +43,9 @@ import com.tencent.devops.process.engine.common.VMUtils
 import com.tencent.devops.process.pojo.classify.PipelineGroup
 import com.tencent.devops.process.pojo.classify.PipelineGroupCreate
 import com.tencent.devops.process.pojo.classify.PipelineLabelCreate
-import com.tencent.devops.process.pojo.setting.PipelineModelAndSetting
-import com.tencent.devops.process.pojo.setting.PipelineRunLockType
-import com.tencent.devops.process.pojo.setting.PipelineSetting
+import com.tencent.devops.common.pipeline.pojo.PipelineModelAndSetting
+import com.tencent.devops.common.pipeline.pojo.setting.PipelineRunLockType
+import com.tencent.devops.common.pipeline.pojo.setting.PipelineSetting
 import com.tencent.devops.process.yaml.modelCreate.inner.ModelCreateEvent
 import com.tencent.devops.process.yaml.pojo.QualityElementInfo
 import com.tencent.devops.process.yaml.v2.models.ScriptBuildYaml
@@ -80,14 +80,14 @@ class ModelCreate @Autowired constructor(
         // 第一个stage，触发类
         val triggerElementList = mutableListOf<Element>()
         val manualTriggerElement = ManualTriggerElement(
-            I18nUtil.getCodeLanMessage(BK_BUILD_MSG_MANUAL),
+            I18nUtil.getCodeLanMessage(BK_MANUAL_TRIGGER),
             "T-1-1-1"
         )
         triggerElementList.add(manualTriggerElement)
 
         val triggerContainer = TriggerContainer(
             id = "0",
-            name = I18nUtil.getCodeLanMessage(BK_BUILD_MSG_TRIGGERS),
+            name = I18nUtil.getCodeLanMessage(BK_BUILD_TRIGGER),
             elements = triggerElementList,
             status = null,
             startEpoch = null,

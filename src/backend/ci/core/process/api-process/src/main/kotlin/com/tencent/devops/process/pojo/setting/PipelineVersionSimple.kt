@@ -27,6 +27,7 @@
 
 package com.tencent.devops.process.pojo.setting
 
+import com.tencent.devops.common.pipeline.enums.VersionStatus
 import io.swagger.annotations.ApiModel
 import io.swagger.annotations.ApiModelProperty
 
@@ -45,5 +46,17 @@ data class PipelineVersionSimple(
     @ApiModelProperty("是否还有构建记录引用该版本标识", required = false)
     val referFlag: Boolean? = null,
     @ApiModelProperty("关联构建记录总数", required = false)
-    val referCount: Int? = null
+    val referCount: Int? = null,
+    @ApiModelProperty("编排版本号", required = false)
+    val pipelineVersion: Int? = null,
+    @ApiModelProperty("触发器版本号", required = false)
+    val triggerVersion: Int? = null,
+    @ApiModelProperty("配置版本号", required = false)
+    val settingVersion: Int? = null,
+    @ApiModelProperty("草稿版本标识", required = false)
+    val status: VersionStatus? = VersionStatus.RELEASED,
+    @ApiModelProperty("调试构建ID", required = false)
+    val debugBuildId: String? = null,
+    @ApiModelProperty("来源代码库标识（分支名）", required = false)
+    val pacRefs: String? = null
 )

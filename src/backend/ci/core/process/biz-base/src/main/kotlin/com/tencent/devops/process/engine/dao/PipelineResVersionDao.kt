@@ -30,14 +30,17 @@ package com.tencent.devops.process.engine.dao
 import com.tencent.devops.common.api.util.JsonUtil
 import com.tencent.devops.common.api.util.timestampmilli
 import com.tencent.devops.common.pipeline.Model
+import com.tencent.devops.common.pipeline.enums.VersionStatus
 import com.tencent.devops.model.process.Tables.T_PIPELINE_RESOURCE_VERSION
+import com.tencent.devops.model.process.tables.records.TPipelineResourceVersionRecord
+import com.tencent.devops.process.pojo.pipeline.PipelineResourceVersion
 import com.tencent.devops.process.pojo.setting.PipelineVersionSimple
 import org.jooq.DSLContext
 import org.jooq.impl.DSL
 import org.springframework.stereotype.Repository
 import java.time.LocalDateTime
 
-@Suppress("Unused", "LongParameterList")
+@Suppress("Unused", "LongParameterList", "ReturnCount", "TooManyFunctions")
 @Repository
 class PipelineResVersionDao {
 
@@ -47,18 +50,29 @@ class PipelineResVersionDao {
         pipelineId: String,
         creator: String,
         version: Int,
-        versionName: String = "init",
-        model: Model
-    ) {
-        val modelString = JsonUtil.toJson(model, formatted = false)
-        create(
+        versionName: String,
+        model: Model,
+        yaml: String?,
+        pipelineVersion: Int?,
+        triggerVersion: Int?,
+        settingVersion: Int?,
+        status: VersionStatus?,
+        description: String?
+    ): TPipelineResourceVersionRecord? {
+        return create(
             dslContext = dslContext,
             projectId = projectId,
             pipelineId = pipelineId,
             creator = creator,
             version = version,
             versionName = versionName,
-            modelString = modelString
+            modelStr = JsonUtil.toJson(model, formatted = false),
+            yamlStr = yaml,
+            pipelineVersion = pipelineVersion,
+            triggerVersion = triggerVersion,
+            settingVersion = settingVersion,
+            status = status,
+            description = description
         )
     }
 
@@ -69,25 +83,40 @@ class PipelineResVersionDao {
         creator: String,
         version: Int,
         versionName: String = "init",
-        modelString: String
-    ) {
+        modelStr: String,
+        yamlStr: String?,
+        pipelineVersion: Int?,
+        triggerVersion: Int?,
+        settingVersion: Int?,
+        status: VersionStatus?,
+        description: String?
+    ): TPipelineResourceVersionRecord? {
         with(T_PIPELINE_RESOURCE_VERSION) {
-            dslContext.insertInto(
-                this,
-                PROJECT_ID,
-                PIPELINE_ID,
-                VERSION,
-                VERSION_NAME,
-                MODEL,
-                CREATOR,
-                CREATE_TIME
-            ).values(projectId, pipelineId, version, versionName, modelString, creator, LocalDateTime.now())
+            return dslContext.insertInto(this)
+                .set(PROJECT_ID, projectId)
+                .set(PIPELINE_ID, pipelineId)
+                .set(VERSION, version)
+                .set(VERSION_NAME, versionName)
+                .set(MODEL, modelStr)
+                .set(YAML, yamlStr)
+                .set(CREATOR, creator)
+                .set(CREATE_TIME, LocalDateTime.now())
+                .set(PIPELINE_VERSION, pipelineVersion)
+                .set(TRIGGER_VERSION, triggerVersion)
+                .set(SETTING_VERSION, settingVersion)
+                .set(STATUS, status?.name)
+                .set(DESCRIPTION, description)
                 .onDuplicateKeyUpdate()
-                .set(MODEL, modelString)
+                .set(MODEL, modelStr)
                 .set(CREATOR, creator)
                 .set(VERSION_NAME, versionName)
-                .set(CREATE_TIME, LocalDateTime.now())
-                .execute()
+                .set(PIPELINE_VERSION, pipelineVersion)
+                .set(TRIGGER_VERSION, triggerVersion)
+                .set(SETTING_VERSION, settingVersion)
+                .set(STATUS, status?.name)
+                .set(DESCRIPTION, description)
+                .returning()
+                .fetchOne()
         }
     }
 
@@ -95,7 +124,8 @@ class PipelineResVersionDao {
         dslContext: DSLContext,
         projectId: String,
         pipelineId: String,
-        version: Int?
+        version: Int?,
+        includeDraft: Boolean? = null
     ): String? {
 
         return with(T_PIPELINE_RESOURCE_VERSION) {
@@ -105,9 +135,55 @@ class PipelineResVersionDao {
             if (version != null) {
                 where.and(VERSION.eq(version))
             } else {
+                // 非新的逻辑请求则保持旧逻辑
+                if (includeDraft != true) where.and(STATUS.ne(VersionStatus.COMMITTING.name))
                 where.orderBy(VERSION.desc()).limit(1)
             }
             where.fetchAny(0, String::class.java)
+        }
+    }
+
+    fun getVersionResource(
+        dslContext: DSLContext,
+        projectId: String,
+        pipelineId: String,
+        version: Int?,
+        includeDraft: Boolean? = null
+    ): PipelineResourceVersion? {
+        with(T_PIPELINE_RESOURCE_VERSION) {
+            val where = dslContext.selectFrom(this)
+                .where(PIPELINE_ID.eq(pipelineId).and(PROJECT_ID.eq(projectId)))
+            if (version != null) {
+                where.and(VERSION.eq(version))
+            } else {
+                // 非新的逻辑请求则保持旧逻辑
+                if (includeDraft != true) where.and(STATUS.ne(VersionStatus.COMMITTING.name))
+                where.orderBy(VERSION.desc()).limit(1)
+            }
+            val record = where.fetchAny() ?: return null
+            return PipelineResourceVersion(
+                projectId = record.projectId,
+                pipelineId = record.pipelineId,
+                version = record.version,
+                model = record.model?.let { str ->
+                    try {
+                        JsonUtil.to(str, Model::class.java)
+                    } catch (ignore: Exception) {
+                        null
+                    }
+                } ?: return null,
+                yaml = record.yaml,
+                creator = record.creator,
+                versionName = record.versionName,
+                createTime = record.createTime,
+                pipelineVersion = record.pipelineVersion,
+                triggerVersion = record.triggerVersion,
+                settingVersion = record.settingVersion,
+                referFlag = record.referFlag,
+                referCount = record.referCount,
+                status = record.status?.let { VersionStatus.valueOf(it) },
+                description = record.description
+            )
         }
     }
 
@@ -143,38 +219,119 @@ class PipelineResVersionDao {
         projectId: String,
         pipelineId: String,
         offset: Int,
-        limit: Int
+        limit: Int,
+        creator: String?,
+        description: String?
     ): List<PipelineVersionSimple> {
         val list = mutableListOf<PipelineVersionSimple>()
         with(T_PIPELINE_RESOURCE_VERSION) {
-            val result = dslContext.select(CREATE_TIME, CREATOR, VERSION_NAME, VERSION, REFER_FLAG, REFER_COUNT)
-                .from(this)
+            val query = dslContext.selectFrom(this)
                 .where(PIPELINE_ID.eq(pipelineId).and(PROJECT_ID.eq(projectId)))
-                .orderBy(VERSION.desc())
-                .limit(limit).offset(offset)
-                .fetch()
-
-            result.forEach {
-                list.add(PipelineVersionSimple(
-                    pipelineId = pipelineId,
-                    creator = it[CREATOR] ?: "unknown",
-                    createTime = it.get(CREATE_TIME)?.timestampmilli() ?: 0,
-                    version = it[VERSION] ?: 1,
-                    versionName = it[VERSION_NAME] ?: "init",
-                    referFlag = it[REFER_FLAG],
-                    referCount = it[REFER_COUNT]
-                ))
+            creator?.let { query.and(CREATOR.eq(creator)) }
+            description?.let { query.and(DESCRIPTION.like("%$description%")) }
+            val result = query
+                .orderBy(VERSION.desc()).limit(limit).offset(offset).fetch()
+            result.forEach { record ->
+                list.add(
+                    PipelineVersionSimple(
+                        pipelineId = pipelineId,
+                        creator = record.creator ?: "unknown",
+                        createTime = record.createTime?.timestampmilli() ?: 0,
+                        version = record.version ?: 1,
+                        versionName = record.versionName ?: "init",
+                        referFlag = record.referFlag,
+                        referCount = record.referCount,
+                        pipelineVersion = record.pipelineVersion,
+                        triggerVersion = record.triggerVersion,
+                        settingVersion = record.settingVersion,
+                        status = record.status?.let { VersionStatus.valueOf(it) },
+                        debugBuildId = record.debugBuildId,
+                        pacRefs = record.refs
+                    )
+                )
             }
         }
         return list
     }
 
-    fun count(dslContext: DSLContext, projectId: String, pipelineId: String): Int {
+    fun listPipelineVersionInList(
+        dslContext: DSLContext,
+        projectId: String,
+        pipelineId: String,
+        versions: Set<Int>
+    ): List<PipelineVersionSimple> {
+        val list = mutableListOf<PipelineVersionSimple>()
         with(T_PIPELINE_RESOURCE_VERSION) {
-            return dslContext.select(DSL.count(PIPELINE_ID))
+            val result = dslContext.selectFrom(this)
+                .where(PIPELINE_ID.eq(pipelineId).and(PROJECT_ID.eq(projectId)))
+                .and(VERSION.`in`(versions))
+                .fetch()
+            result.forEach { record ->
+                list.add(
+                    PipelineVersionSimple(
+                        pipelineId = pipelineId,
+                        creator = record.creator ?: "unknown",
+                        createTime = record.createTime?.timestampmilli() ?: 0,
+                        version = record.version ?: 1,
+                        versionName = record.versionName ?: "init",
+                        referFlag = record.referFlag,
+                        referCount = record.referCount,
+                        pipelineVersion = record.pipelineVersion,
+                        triggerVersion = record.triggerVersion,
+                        settingVersion = record.settingVersion,
+                        status = record.status?.let { VersionStatus.valueOf(it) },
+                        debugBuildId = record.debugBuildId,
+                        pacRefs = record.refs
+                    )
+                )
+            }
+        }
+        return list
+    }
+
+    fun getVersionCreatorInPage(
+        dslContext: DSLContext,
+        projectId: String,
+        pipelineId: String,
+        offset: Int,
+        limit: Int
+    ): List<String> {
+        with(T_PIPELINE_RESOURCE_VERSION) {
+            return dslContext.selectDistinct(CREATOR)
                 .from(this)
                 .where(PIPELINE_ID.eq(pipelineId).and(PROJECT_ID.eq(projectId)))
-                .fetchOne(0, Int::class.java)!!
+                .limit(limit).offset(offset)
+                .fetch().map { it.component1() }
+        }
+    }
+
+    fun count(
+        dslContext: DSLContext,
+        projectId: String,
+        pipelineId: String,
+        creator: String?,
+        description: String?
+    ): Int {
+        with(T_PIPELINE_RESOURCE_VERSION) {
+            val query = dslContext.select(DSL.count(PIPELINE_ID))
+                .from(this)
+                .where(PIPELINE_ID.eq(pipelineId).and(PROJECT_ID.eq(projectId)))
+            creator?.let { query.and(CREATOR.eq(creator)) }
+            description?.let { query.and(DESCRIPTION.like("%$description%")) }
+            return query.fetchOne(0, Int::class.java)!!
+        }
+    }
+
+    fun countVersionCreator(
+        dslContext: DSLContext,
+        projectId: String,
+        pipelineId: String
+    ): Int {
+        with(T_PIPELINE_RESOURCE_VERSION) {
+            val query = dslContext.selectDistinct(CREATOR)
+                .from(this)
+                .where(PIPELINE_ID.eq(pipelineId).and(PROJECT_ID.eq(projectId)))
+            return query.fetchCount()
         }
     }
 
@@ -221,6 +378,21 @@ class PipelineResVersionDao {
                 .set(REFER_COUNT, referCount)
             referFlag?.let { baseStep.set(REFER_FLAG, referFlag) }
             baseStep.where(PIPELINE_ID.eq(pipelineId).and(PROJECT_ID.eq(projectId)).and(VERSION.eq(version))).execute()
+        }
+    }
+
+    fun updateSettingVersion(
+        dslContext: DSLContext,
+        projectId: String,
+        pipelineId: String,
+        version: Int,
+        settingVersion: Int
+    ): Int {
+        with(T_PIPELINE_RESOURCE_VERSION) {
+            return dslContext.update(this)
+                .set(SETTING_VERSION, settingVersion)
+                .where(PIPELINE_ID.eq(pipelineId).and(PROJECT_ID.eq(projectId)).and(VERSION.eq(version)))
+                .execute()
         }
     }
 }

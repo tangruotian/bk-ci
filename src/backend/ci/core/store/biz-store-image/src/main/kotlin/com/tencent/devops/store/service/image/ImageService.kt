@@ -43,6 +43,8 @@ import com.tencent.devops.common.web.utils.I18nUtil
 import com.tencent.devops.model.store.tables.records.TImageRecord
 import com.tencent.devops.project.api.service.ServiceProjectResource
 import com.tencent.devops.store.constant.StoreMessageCode
+import com.tencent.devops.store.constant.StoreMessageCode.NO_COMPONENT_ADMIN_PERMISSION
+import com.tencent.devops.store.constant.StoreMessageCode.GET_INFO_NO_PERMISSION
 import com.tencent.devops.store.constant.StoreMessageCode.USER_IMAGE_VERSION_NOT_EXIST
 import com.tencent.devops.store.dao.common.CategoryDao
 import com.tencent.devops.store.dao.common.ClassifyDao
@@ -113,6 +115,7 @@ import com.tencent.devops.store.service.common.StoreUserService
 import com.tencent.devops.store.util.ImageUtil
 import java.time.LocalDateTime
 import java.util.Date
+import kotlin.math.ceil
 import org.jooq.DSLContext
 import org.jooq.Record
 import org.jooq.impl.DSL
@@ -122,7 +125,6 @@ import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.cloud.context.config.annotation.RefreshScope
 import org.springframework.stereotype.Service
-import kotlin.math.ceil
 
 @Suppress("ALL")
 @RefreshScope
@@ -203,7 +205,7 @@ abstract class ImageService @Autowired constructor() {
             )
         ) {
             throw ErrorCodeException(
-                errorCode = CommonMessageCode.PERMISSION_DENIED,
+                errorCode = GET_INFO_NO_PERMISSION,
                 params = arrayOf(imageCode)
             )
         }
@@ -722,6 +724,30 @@ abstract class ImageService @Autowired constructor() {
         }
     }
 
+    fun getImageInfoByCodeAndVersion(
+        imageCode: String,
+        imageVersion: String?
+    ): ImageRepoInfo? {
+        // 区分是否为调试项目
+        val imageStatusList = mutableListOf(
+            ImageStatusEnum.RELEASED.status.toByte(),
+            ImageStatusEnum.UNDERCARRIAGING.status.toByte(),
+            ImageStatusEnum.UNDERCARRIAGED.status.toByte()
+        )
+        val imageRecords =
+            imageDao.getImagesByBaseVersion(
+                dslContext = dslContext,
+                imageCode = imageCode,
+                imageStatusSet = imageStatusList.toSet(),
+                baseVersion = imageVersion
+            )
+        imageRecords?.sortWith(Comparator { o1, o2 ->
+            ImageUtil.compareVersion(o2.get(KEY_IMAGE_VERSION) as String?, o1.get(KEY_IMAGE_VERSION) as String?)
+        })
+        val latestImage = imageRecords?.get(0)
+        return latestImage?.let { getImageRepoInfoByRecord(it) }
+    }
+
     fun getSelfDevelopPublicImages(
         interfaceName: String? = "Anon interface"
     ): List<ImageRepoInfo> {
@@ -1007,7 +1033,7 @@ abstract class ImageService @Autowired constructor() {
         val isOwner = storeMemberDao.isStoreAdmin(dslContext, userId, imageCode, type)
         if (!isOwner) {
             return I18nUtil.generateResponseDataObject(
-                messageCode = CommonMessageCode.PERMISSION_DENIED,
+                messageCode = NO_COMPONENT_ADMIN_PERMISSION,
                 params = arrayOf(imageCode),
                 language = I18nUtil.getLanguage(userId)
             )
@@ -1158,7 +1184,7 @@ abstract class ImageService @Autowired constructor() {
         // 判断当前用户是否是该镜像的成员
         if (!storeMemberDao.isStoreMember(dslContext, userId, imageCode, StoreTypeEnum.IMAGE.type.toByte())) {
             return I18nUtil.generateResponseDataObject(
-                messageCode = CommonMessageCode.PERMISSION_DENIED,
+                messageCode = GET_INFO_NO_PERMISSION,
                 language = I18nUtil.getLanguage(userId)
             )
         }

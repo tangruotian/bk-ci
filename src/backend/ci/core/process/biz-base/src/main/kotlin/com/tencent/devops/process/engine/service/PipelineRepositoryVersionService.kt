@@ -35,11 +35,13 @@ import com.tencent.devops.process.engine.control.lock.PipelineVersionLock
 import com.tencent.devops.process.engine.dao.PipelineBuildDao
 import com.tencent.devops.process.engine.dao.PipelineResVersionDao
 import com.tencent.devops.process.engine.pojo.PipelineInfo
+import com.tencent.devops.process.engine.pojo.PipelineResVersion
 import org.jooq.DSLContext
 import org.jooq.impl.DSL
 import org.springframework.stereotype.Service
 
 @Service
+@Suppress("LongParameterList")
 class PipelineRepositoryVersionService(
     private val dslContext: DSLContext,
     private val pipelineResVersionDao: PipelineResVersionDao,
@@ -111,32 +113,85 @@ class PipelineRepositoryVersionService(
         projectId: String,
         pipelineId: String,
         offset: Int,
-        limit: Int
-    ): Pair<Int, List<PipelineInfo>> {
+        limit: Int,
+        creator: String?,
+        description: String?
+    ): Pair<Int, List<PipelineResVersion>> {
         if (pipelineInfo == null) {
             return Pair(0, emptyList())
         }
 
-        val count = pipelineResVersionDao.count(dslContext, projectId, pipelineId)
+        val count = pipelineResVersionDao.count(
+            dslContext = dslContext,
+            projectId = projectId,
+            pipelineId = pipelineId,
+            creator = creator,
+            description = description
+        )
         val result = pipelineResVersionDao.listPipelineVersion(
+            dslContext = dslContext,
+            projectId = projectId,
+            pipelineId = pipelineId,
+            creator = creator,
+            description = description,
+            offset = offset,
+            limit = limit
+        )
+        val list = mutableListOf<PipelineResVersion>()
+
+        result.forEach {
+            list.add(
+                PipelineResVersion(
+                    createTime = pipelineInfo.createTime,
+                    creator = pipelineInfo.creator,
+                    canElementSkip = pipelineInfo.canElementSkip,
+                    canManualStartup = pipelineInfo.canManualStartup,
+                    channelCode = pipelineInfo.channelCode,
+                    id = pipelineInfo.id,
+                    lastModifyUser = pipelineInfo.lastModifyUser,
+                    pipelineDesc = pipelineInfo.pipelineDesc,
+                    pipelineId = pipelineInfo.pipelineId,
+                    pipelineName = pipelineInfo.pipelineName,
+                    projectId = pipelineInfo.projectId,
+                    taskCount = pipelineInfo.taskCount,
+                    templateId = pipelineInfo.templateId,
+                    version = it.version,
+                    versionName = it.versionName,
+                    pipelineVersion = it.pipelineVersion,
+                    triggerVersion = it.triggerVersion,
+                    settingVersion = it.settingVersion,
+                    status = it.status,
+                    debugBuildId = it.debugBuildId,
+                    pacRefs = it.pacRefs
+                )
+            )
+        }
+        return count to list
+    }
+
+    fun getVersionCreatorInPage(
+        pipelineInfo: PipelineInfo?,
+        projectId: String,
+        pipelineId: String,
+        offset: Int,
+        limit: Int
+    ): Pair<Int, List<String>> {
+        if (pipelineInfo == null) {
+            return Pair(0, emptyList())
+        }
+
+        val count = pipelineResVersionDao.countVersionCreator(
+            dslContext = dslContext,
+            projectId = projectId,
+            pipelineId = pipelineId
+        )
+        val result = pipelineResVersionDao.getVersionCreatorInPage(
             dslContext = dslContext,
             projectId = projectId,
             pipelineId = pipelineId,
             offset = offset,
             limit = limit
         )
-        val list = mutableListOf<PipelineInfo>()
-
-        result.forEach {
-            list.add(
-                pipelineInfo.copy(
-                    createTime = it.createTime,
-                    creator = it.creator,
-                    version = it.version,
-                    versionName = it.versionName
-                )
-            )
-        }
-        return count to list
+        return count to result
     }
 }

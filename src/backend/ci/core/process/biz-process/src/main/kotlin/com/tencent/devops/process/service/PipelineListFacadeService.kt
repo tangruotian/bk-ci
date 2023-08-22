@@ -35,7 +35,6 @@ import com.tencent.devops.common.api.exception.PermissionForbiddenException
 import com.tencent.devops.common.api.model.SQLLimit
 import com.tencent.devops.common.api.model.SQLPage
 import com.tencent.devops.common.api.pojo.Page
-import com.tencent.devops.common.api.util.DateTimeUtil
 import com.tencent.devops.common.api.util.JsonUtil
 import com.tencent.devops.common.api.util.MessageUtil
 import com.tencent.devops.common.api.util.PageUtil
@@ -47,6 +46,7 @@ import com.tencent.devops.common.pipeline.Model
 import com.tencent.devops.common.pipeline.enums.BuildStatus
 import com.tencent.devops.common.pipeline.enums.ChannelCode
 import com.tencent.devops.common.pipeline.enums.PipelineInstanceTypeEnum
+import com.tencent.devops.common.pipeline.enums.StartType
 import com.tencent.devops.common.pipeline.pojo.element.trigger.enums.CodeEventType
 import com.tencent.devops.common.service.utils.LogUtils
 import com.tencent.devops.common.web.utils.I18nUtil
@@ -91,12 +91,13 @@ import com.tencent.devops.process.pojo.classify.enums.Logic
 import com.tencent.devops.process.pojo.code.WebhookInfo
 import com.tencent.devops.process.pojo.pipeline.PipelineCount
 import com.tencent.devops.process.pojo.pipeline.SimplePipeline
-import com.tencent.devops.process.pojo.setting.PipelineRunLockType
+import com.tencent.devops.common.pipeline.pojo.setting.PipelineRunLockType
 import com.tencent.devops.process.pojo.template.TemplatePipelineInfo
 import com.tencent.devops.process.service.label.PipelineGroupService
 import com.tencent.devops.process.service.pipeline.PipelineStatusService
 import com.tencent.devops.process.service.view.PipelineViewGroupService
 import com.tencent.devops.process.service.view.PipelineViewService
+import com.tencent.devops.process.util.BuildMsgUtils
 import com.tencent.devops.process.utils.KEY_PIPELINE_ID
 import com.tencent.devops.process.utils.PIPELINE_VIEW_ALL_PIPELINES
 import com.tencent.devops.process.utils.PIPELINE_VIEW_FAVORITE_PIPELINES
@@ -1391,7 +1392,11 @@ class PipelineListFacadeService @Autowired constructor(
                 it.viewNames = pipelineViewNameMap[it.pipelineId]
             }
             pipelineBuildMap[pipelineId]?.let { lastBuild ->
-                it.lastBuildMsg = lastBuild.buildMsg
+                it.lastBuildMsg = BuildMsgUtils.getBuildMsg(
+                    buildMsg = lastBuild.buildMsg,
+                    startType = StartType.toStartType(lastBuild.trigger),
+                    channelCode = ChannelCode.getChannel(lastBuild.channel)
+                )
                 it.trigger = lastBuild.trigger
                 val webhookInfo = lastBuild.webhookInfo?.let { self ->
                     JsonUtil.to(self, object : TypeReference<WebhookInfo?>() {})
@@ -1726,8 +1731,7 @@ class PipelineListFacadeService @Autowired constructor(
                 )
             )
         }
-        val pipelineInfo = pipelineInfoDao.getPipelineInfo(
-            dslContext = dslContext,
+        val pipelineInfo = pipelineRepositoryService.getPipelineInfo(
             projectId = projectId,
             pipelineId = pipelineId
         ) ?: return null
@@ -1762,11 +1766,16 @@ class PipelineListFacadeService @Autowired constructor(
             pipelineName = pipelineInfo.pipelineName,
             instanceFromTemplate = instanceFromTemplate,
             hasCollect = hasCollect,
-            canManualStartup = pipelineInfo.manualStartup,
+            canManualStartup = pipelineInfo.canManualStartup,
             pipelineVersion = pipelineInfo.version.toString(),
-            deploymentTime = DateTimeUtil.toDateTime(pipelineInfo.updateTime),
+            deploymentTime = pipelineInfo.updateTime,
             hasPermission = hasEditPermission,
-            templateId = templateId
+            templateId = templateId,
+            creator = pipelineInfo.creator,
+            pipelineDesc = pipelineInfo.pipelineDesc,
+            createTime = pipelineInfo.createTime,
+            updateTime = pipelineInfo.updateTime,
+            viewNames = pipelineInfo.viewNames
         )
     }
 

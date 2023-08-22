@@ -30,6 +30,8 @@ package com.tencent.devops.process.engine.dao
 import com.tencent.devops.common.api.util.JsonUtil
 import com.tencent.devops.common.pipeline.Model
 import com.tencent.devops.model.process.Tables.T_PIPELINE_RESOURCE
+import com.tencent.devops.model.process.tables.records.TPipelineResourceRecord
+import com.tencent.devops.process.pojo.pipeline.PipelineResourceVersion
 import com.tencent.devops.process.pojo.setting.PipelineModelVersion
 import org.jooq.Condition
 import org.jooq.DSLContext
@@ -40,7 +42,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Repository
 import java.time.LocalDateTime
 
-@Suppress("TooManyFunctions", "LongParameterList")
+@Suppress("TooManyFunctions", "LongParameterList", "ReturnCount")
 @Repository
 class PipelineResDao {
 
@@ -50,31 +52,91 @@ class PipelineResDao {
         pipelineId: String,
         creator: String,
         version: Int,
-        model: Model
+        versionName: String,
+        model: Model,
+        pipelineVersion: Int,
+        triggerVersion: Int,
+        settingVersion: Int
     ) {
         logger.info("Create the pipeline model pipelineId=$pipelineId, version=$version")
         with(T_PIPELINE_RESOURCE) {
             val modelString = JsonUtil.toJson(model, formatted = false)
-            dslContext.insertInto(
-                this,
-                PROJECT_ID,
-                PIPELINE_ID,
-                VERSION,
-                MODEL,
-                CREATOR,
-                CREATE_TIME
-            )
-                .values(projectId, pipelineId, version, modelString, creator, LocalDateTime.now())
-                .onDuplicateKeyUpdate()
+            dslContext.insertInto(this)
+                .set(PROJECT_ID, projectId)
+                .set(PIPELINE_ID, pipelineId)
+                .set(VERSION, version)
+                .set(VERSION_NAME, versionName)
                 .set(MODEL, modelString)
                 .set(CREATOR, creator)
                 .set(CREATE_TIME, LocalDateTime.now())
+                .set(PIPELINE_VERSION, pipelineVersion)
+                .set(TRIGGER_VERSION, triggerVersion)
+                .set(SETTING_VERSION, settingVersion)
+                .onDuplicateKeyUpdate()
+                .set(MODEL, modelString)
+                .set(CREATOR, creator)
+                .set(VERSION_NAME, versionName)
+                .set(PIPELINE_VERSION, pipelineVersion)
+                .set(TRIGGER_VERSION, triggerVersion)
+                .set(SETTING_VERSION, settingVersion)
                 .execute()
         }
     }
 
-    fun getLatestVersionModelString(dslContext: DSLContext, projectId: String, pipelineId: String) =
-        getVersionModelString(dslContext = dslContext, projectId = projectId, pipelineId = pipelineId, version = null)
+    fun getLatestVersionRecord(
+        dslContext: DSLContext,
+        projectId: String,
+        pipelineId: String
+    ): TPipelineResourceRecord? {
+        return with(T_PIPELINE_RESOURCE) {
+            dslContext.selectFrom(this)
+                .where(PIPELINE_ID.eq(pipelineId).and(PROJECT_ID.eq(projectId)))
+                .fetchAny()
+        }
+    }
+
+    fun getLatestVersionResource(
+        dslContext: DSLContext,
+        projectId: String,
+        pipelineId: String
+    ): PipelineResourceVersion? {
+        with(T_PIPELINE_RESOURCE) {
+            val record = dslContext.selectFrom(this)
+                .where(PIPELINE_ID.eq(pipelineId).and(PROJECT_ID.eq(projectId)))
+                .fetchAny() ?: return null
+            return PipelineResourceVersion(
+                projectId = record.projectId,
+                pipelineId = record.pipelineId,
+                version = record.version,
+                model = record.model?.let { str ->
+                    try {
+                        JsonUtil.to(str, Model::class.java)
+                    } catch (ignore: Exception) {
+                        logger.warn("get process($pipelineId) model fail", ignore)
+                        null
+                    }
+                } ?: return null,
+                yaml = record.yaml,
+                creator = record.creator,
+                versionName = record.versionName,
+                createTime = record.createTime,
+                pipelineVersion = record.pipelineVersion,
+                triggerVersion = record.triggerVersion,
+                settingVersion = record.settingVersion
+            )
+        }
+    }
+
+    fun getLatestVersionModelString(
+        dslContext: DSLContext,
+        projectId: String,
+        pipelineId: String
+    ) = getVersionModelString(
+        dslContext = dslContext,
+        projectId = projectId,
+        pipelineId = pipelineId,
+        version = null
+    )
 
     fun getVersionModelString(
         dslContext: DSLContext,
@@ -157,6 +219,22 @@ class PipelineResDao {
                 .set(CREATOR, userId)
                 .where(conditions)
                 .execute()
+        }
+    }
+
+    fun updateSettingVersion(
+        dslContext: DSLContext,
+        userId: String,
+        projectId: String,
+        pipelineId: String,
+        settingVersion: Int
+    ): Int? {
+        with(T_PIPELINE_RESOURCE) {
+            return dslContext.update(this)
+                .set(SETTING_VERSION, settingVersion)
+                .where(PROJECT_ID.eq(projectId).and(PIPELINE_ID.eq(pipelineId)))
+                .returning(VERSION)
+                .fetchOne()?.version
         }
     }
 

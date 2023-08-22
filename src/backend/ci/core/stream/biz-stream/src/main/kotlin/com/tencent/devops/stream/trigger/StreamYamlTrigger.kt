@@ -36,7 +36,9 @@ import com.tencent.devops.common.pipeline.enums.BuildStatus
 import com.tencent.devops.common.pipeline.enums.ChannelCode
 import com.tencent.devops.common.service.prometheus.BkTimed
 import com.tencent.devops.process.api.service.ServicePipelineSettingResource
+import com.tencent.devops.process.yaml.pojo.TemplatePath
 import com.tencent.devops.process.yaml.v2.exception.YamlFormatException
+import com.tencent.devops.process.yaml.v2.models.PreScriptBuildYaml
 import com.tencent.devops.process.yaml.v2.models.Resources
 import com.tencent.devops.process.yaml.v2.models.ResourcesPools
 import com.tencent.devops.process.yaml.v2.models.format
@@ -103,6 +105,7 @@ class StreamYamlTrigger @Autowired constructor(
         const val STREAM_TEMPLATE_ROOT_FILE = "STREAM_TEMPLATE_ROOT_FILE"
     }
 
+    @BkTimed
     fun checkAndTrigger(
         action: BaseAction,
         trigger: String?
@@ -185,7 +188,6 @@ class StreamYamlTrigger @Autowired constructor(
     }
 
     @Suppress("ComplexMethod")
-    @BkTimed
     fun triggerBuild(
         action: BaseAction,
         triggerEvent: Pair<List<Any>?, TriggerResult>?
@@ -433,7 +435,7 @@ class StreamYamlTrigger @Autowired constructor(
         try {
             val preYamlObject = YamlTemplate(
                 yamlObject = preTemplateYamlObject,
-                filePath = filePath,
+                filePath = TemplatePath(filePath),
                 extraParameters = action,
                 getTemplateMethod = yamlTemplateService::getTemplate,
                 nowRepo = null,
@@ -442,7 +444,7 @@ class StreamYamlTrigger @Autowired constructor(
                 conf = YamlTemplateConf(
                     useOldParametersExpression = action.data.context.pipelineAsCodeSettings?.enable != true
                 )
-            ).replace()
+            ).replace() as PreScriptBuildYaml
 
             val newPreYamlObject = preYamlObject.copy(
                 resources = Resources(

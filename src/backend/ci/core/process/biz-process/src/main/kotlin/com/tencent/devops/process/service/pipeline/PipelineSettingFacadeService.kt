@@ -44,6 +44,7 @@ import com.tencent.devops.process.engine.atom.AtomUtils
 import com.tencent.devops.process.engine.pojo.event.PipelineUpdateEvent
 import com.tencent.devops.process.engine.service.PipelineRepositoryService
 import com.tencent.devops.process.permission.PipelinePermissionService
+import com.tencent.devops.process.pojo.PipelineDetailInfo
 import com.tencent.devops.process.pojo.audit.Audit
 import com.tencent.devops.process.pojo.config.JobCommonSettingConfig
 import com.tencent.devops.process.pojo.config.PipelineCommonSettingConfig
@@ -51,16 +52,19 @@ import com.tencent.devops.process.pojo.config.StageCommonSettingConfig
 import com.tencent.devops.process.pojo.config.TaskCommonSettingConfig
 import com.tencent.devops.process.pojo.setting.JobCommonSetting
 import com.tencent.devops.process.pojo.setting.PipelineCommonSetting
-import com.tencent.devops.process.pojo.setting.PipelineRunLockType
-import com.tencent.devops.process.pojo.setting.PipelineSetting
+import com.tencent.devops.common.pipeline.pojo.setting.PipelineRunLockType
+import com.tencent.devops.common.pipeline.pojo.setting.PipelineSetting
 import com.tencent.devops.process.pojo.setting.StageCommonSetting
-import com.tencent.devops.process.pojo.setting.Subscription
+import com.tencent.devops.common.pipeline.pojo.setting.Subscription
 import com.tencent.devops.process.pojo.setting.TaskCommonSetting
 import com.tencent.devops.process.pojo.setting.TaskComponentCommonSetting
 import com.tencent.devops.process.pojo.setting.UpdatePipelineModelRequest
 import com.tencent.devops.process.service.PipelineSettingVersionService
 import com.tencent.devops.process.service.label.PipelineGroupService
 import com.tencent.devops.process.service.view.PipelineViewGroupService
+import com.tencent.devops.process.utils.PipelineVersionUtils
+import org.json.JSONObject
+import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
 
@@ -81,39 +85,52 @@ class PipelineSettingFacadeService @Autowired constructor(
     private val pipelineEventDispatcher: PipelineEventDispatcher
 ) {
 
+    private val logger = LoggerFactory.getLogger(PipelineSettingFacadeService::class.java)
+
+    /**
+     * 修改配置时需要返回具体的版本号用于传递
+     */
     fun saveSetting(
         userId: String,
+        projectId: String,
+        pipelineId: String,
         setting: PipelineSetting,
         checkPermission: Boolean = true,
-        version: Int = 0,
         updateLastModifyUser: Boolean? = true,
         dispatchPipelineUpdateEvent: Boolean = true,
-        updateLabels: Boolean = true
-    ): String {
+        updateLabels: Boolean = true,
+        saveDraft: Boolean? = false
+    ): PipelineSetting {
         if (checkPermission) {
             val language = I18nUtil.getLanguage(userId)
             val permission = AuthPermission.EDIT
             checkEditPermission(
                 userId = userId,
-                projectId = setting.projectId,
-                pipelineId = setting.pipelineId,
+                projectId = projectId,
+                pipelineId = pipelineId,
                 message = MessageUtil.getMessageByLocale(
                     CommonMessageCode.USER_NOT_PERMISSIONS_OPERATE_PIPELINE,
                     language,
                     arrayOf(
                         userId,
-                        setting.projectId,
+                        projectId,
                         permission.getI18n(language),
-                        setting.pipelineId
+                        pipelineId
                     )
                 )
             )
         }
+        val settingVersion = pipelineRepositoryService.getSetting(
+            projectId = projectId,
+            pipelineId = pipelineId
+        )?.let { origin ->
+            PipelineVersionUtils.getSettingVersion(setting.version, setting, origin)
+        } ?: 1
 
         val pipelineName = pipelineRepositoryService.saveSetting(
             userId = userId,
             setting = setting,
-            version = version,
+            version = settingVersion,
             updateLastModifyUser = updateLastModifyUser
         )
 
@@ -157,12 +174,12 @@ class PipelineSettingFacadeService @Autowired constructor(
                     source = "update_pipeline",
                     projectId = setting.projectId,
                     pipelineId = setting.pipelineId,
-                    version = version,
+                    version = settingVersion,
                     userId = userId
                 )
             )
         }
-        return setting.pipelineId
+        return setting.copy(version = settingVersion)
     }
 
     fun userGetSetting(
@@ -171,7 +188,8 @@ class PipelineSettingFacadeService @Autowired constructor(
         pipelineId: String,
         channelCode: ChannelCode = ChannelCode.BS,
         version: Int = 0,
-        checkPermission: Boolean = false
+        checkPermission: Boolean = false,
+        detailInfo: PipelineDetailInfo? = null
     ): PipelineSetting {
 
         if (checkPermission) {
@@ -202,16 +220,20 @@ class PipelineSettingFacadeService @Autowired constructor(
             labels.addAll(it.labels)
         }
         if (settingInfo == null) {
-            val pipeline = client.get(ServicePipelineResource::class).getPipelineInfo(
+            val (pipelineName, pipelineDesc) = detailInfo?.let {
+                Pair(it.pipelineName, it.pipelineDesc)
+            } ?: client.get(ServicePipelineResource::class).getPipelineInfo(
                 projectId = projectId,
                 pipelineId = pipelineId,
                 channelCode = channelCode
-            ).data
+            ).data?.let {
+                Pair(it.pipelineName, it.pipelineDesc)
+            } ?: Pair(null, null)
             settingInfo = PipelineSetting(
                 projectId = projectId,
                 pipelineId = pipelineId,
-                pipelineName = pipeline?.pipelineName ?: "unknown pipeline name",
-                desc = pipeline?.pipelineDesc ?: "",
+                pipelineName = pipelineName ?: "unknown pipeline name",
+                desc = pipelineDesc ?: "",
                 runLockType = PipelineRunLockType.MULTIPLE,
                 successSubscription = Subscription(),
                 failSubscription = Subscription(),
@@ -223,9 +245,11 @@ class PipelineSettingFacadeService @Autowired constructor(
         }
 
         if (version > 0) { // #671 目前只接受通知设置的版本管理, 其他属于公共设置不接受版本管理
-            val ve = pipelineSettingVersionService.getSubscriptionsVer(userId, projectId, pipelineId, version)
+            val ve = pipelineSettingVersionService.getPipelineSettingVersion(projectId, pipelineId, version)
             settingInfo.successSubscription = ve.successSubscription
             settingInfo.failSubscription = ve.failSubscription
+            settingInfo.successSubscriptionList = ve.successSubscriptionList
+            settingInfo.failSubscriptionList = ve.failSubscriptionList
         }
 
         return settingInfo
@@ -312,20 +336,10 @@ class PipelineSettingFacadeService @Autowired constructor(
         newPipelineId: String,
         pipelineName: String
     ): PipelineSetting {
-        return PipelineSetting(
+        return oldSetting.copy(
             projectId = projectId,
             pipelineId = newPipelineId,
-            pipelineName = pipelineName,
-            desc = oldSetting.desc,
-            successSubscription = oldSetting.successSubscription,
-            failSubscription = oldSetting.failSubscription,
-            maxPipelineResNum = oldSetting.maxPipelineResNum,
-            maxQueueSize = oldSetting.maxQueueSize,
-            hasPermission = oldSetting.hasPermission,
-            labels = oldSetting.labels,
-            runLockType = oldSetting.runLockType,
-            waitQueueTimeMinute = oldSetting.waitQueueTimeMinute,
-            pipelineAsCodeSettings = oldSetting.pipelineAsCodeSettings
+            pipelineName = pipelineName
         )
     }
 

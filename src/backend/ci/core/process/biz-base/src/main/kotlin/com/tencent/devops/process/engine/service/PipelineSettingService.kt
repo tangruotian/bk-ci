@@ -31,7 +31,7 @@ import com.tencent.devops.common.api.util.DateTimeUtil
 import com.tencent.devops.common.redis.RedisOperation
 import com.tencent.devops.process.dao.PipelineSettingDao
 import com.tencent.devops.process.engine.dao.PipelineBuildDao
-import com.tencent.devops.process.pojo.setting.PipelineRunLockType
+import com.tencent.devops.common.pipeline.pojo.setting.PipelineRunLockType
 import org.jooq.DSLContext
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
@@ -60,9 +60,9 @@ class PipelineSettingService @Autowired constructor(
                 setting == null -> {
                     TimeUnit.HOURS.toMillis(1)
                 }
-                setting.runLockType == PipelineRunLockType.toValue(PipelineRunLockType.SINGLE) ||
-                    setting.runLockType == PipelineRunLockType.toValue(PipelineRunLockType.GROUP_LOCK) -> {
-                    TimeUnit.SECONDS.toMillis(setting.waitQueueTimeSecond.toLong())
+                setting.runLockType == PipelineRunLockType.SINGLE ||
+                    setting.runLockType == PipelineRunLockType.GROUP_LOCK -> {
+                    TimeUnit.MINUTES.toMillis(setting.waitQueueTimeMinute.toLong())
                 }
                 else -> {
                     TimeUnit.HOURS.toMillis(1)

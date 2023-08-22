@@ -28,9 +28,9 @@
 package com.tencent.devops.common.pipeline.container
 
 import com.tencent.devops.common.pipeline.enums.VMBaseOS
-import com.tencent.devops.common.pipeline.pojo.element.Element
 import com.tencent.devops.common.pipeline.option.JobControlOption
 import com.tencent.devops.common.pipeline.option.MatrixControlOption
+import com.tencent.devops.common.pipeline.pojo.element.Element
 import com.tencent.devops.common.pipeline.pojo.time.BuildRecordTimeCost
 import com.tencent.devops.common.pipeline.type.DispatchType
 import io.swagger.annotations.ApiModel
@@ -120,7 +120,9 @@ data class VMBuildContainer(
     @ApiModelProperty("当前矩阵子容器的上下文组合（分裂后的子容器特有字段）", required = false)
     var matrixContext: Map<String, String>? = null,
     @ApiModelProperty("分裂后的容器集合（分裂后的父容器特有字段）", required = false)
-    var groupContainers: MutableList<VMBuildContainer>? = null
+    var groupContainers: MutableList<VMBuildContainer>? = null,
+    override var template: String? = null,
+    override var ref: String? = null
 ) : Container {
     companion object {
         const val classType = "vmBuild"
