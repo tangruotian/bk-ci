@@ -166,6 +166,17 @@ class TemplatePACService @Autowired constructor(
         return TemplateListModel(projectId, hasManagerPermission, result, count)
     }
 
+    // 同步代码库过来的模板
+    fun syncGitTemplate(
+
+    ) {
+        // 根据代码库信息取模板内容
+        // 根据内容进行模板替换为完整模板
+
+        // 将完整模板转换为 json
+        // 将模板保存入库
+    }
+
     companion object {
         private val logger = LoggerFactory.getLogger(TemplatePACService::class.java)
     }
