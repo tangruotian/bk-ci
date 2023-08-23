@@ -46,7 +46,8 @@ import org.springframework.stereotype.Service
 class TemplatePACService @Autowired constructor(
     private val facadeService: TemplateFacadeService,
     private val templateDao: TemplateDao,
-    private val dslContext: DSLContext
+    private val dslContext: DSLContext,
+    private val templateCommonService: TemplateCommonService
 ) {
     // 针对蓝盾界面用户查看的模板列表接口，相较于 listTemplate 函数实现上会有区别，所以抽出
     // 需要实现 如果只有草稿版本则返回草稿版本，如果同时有草稿和发布版本，则需要搜索发布版本中的最新版本
@@ -63,7 +64,7 @@ class TemplatePACService @Autowired constructor(
         filterByTemplateScopeType: TemplateScopeType? = null,
         filterByTemplateUpdateUser: String? = null
     ): TemplateListModel {
-        val hasManagerPermission = facadeService.hasManagerPermission(projectId, userId)
+        val hasManagerPermission = templateCommonService.hasManagerPermission(projectId, userId)
         val result = ArrayList<TemplateModel>()
         // 老接口目前的状态都使用已发布和旧数据统一
         val count = templateDao.countTemplate(
@@ -167,9 +168,7 @@ class TemplatePACService @Autowired constructor(
     }
 
     // 同步代码库过来的模板
-    fun syncGitTemplate(
-
-    ) {
+    fun syncGitTemplate() {
         // 根据代码库信息取模板内容
         // 根据内容进行模板替换为完整模板
 

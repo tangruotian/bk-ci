@@ -69,6 +69,42 @@ BEGIN
         ADD COLUMN `DESC` varchar(1024) NULL COMMENT '描述';
     END IF;
 
+    IF NOT EXISTS(SELECT 1
+                  FROM information_schema.COLUMNS
+                  WHERE TABLE_SCHEMA = db
+                    AND TABLE_NAME = 'T_TEMPLATE'
+                    AND COLUMN_NAME = 'PIPELINE_VERSION') THEN
+    ALTER TABLE `T_TEMPLATE`
+        ADD COLUMN `PIPELINE_VERSION` int(11) NULL DEFAULT 1 COMMENT '流水线模型版本';
+    END IF;
+
+    IF NOT EXISTS(SELECT 1
+                  FROM information_schema.COLUMNS
+                  WHERE TABLE_SCHEMA = db
+                    AND TABLE_NAME = 'T_TEMPLATE'
+                    AND COLUMN_NAME = 'TRIGGER_VERSION') THEN
+    ALTER TABLE `T_TEMPLATE`
+        ADD COLUMN `TRIGGER_VERSION` int(11) NULL DEFAULT 1 COMMENT '触发器模型版本';
+    END IF;
+
+    IF NOT EXISTS(SELECT 1
+                  FROM information_schema.COLUMNS
+                  WHERE TABLE_SCHEMA = db
+                    AND TABLE_NAME = 'T_TEMPLATE'
+                    AND COLUMN_NAME = 'SETTING_VERSION') THEN
+    ALTER TABLE `T_TEMPLATE`
+        ADD COLUMN `SETTING_VERSION` int(11) NULL DEFAULT 1 COMMENT '关联的流水线设置版本号';
+    END IF; 
+
+    IF NOT EXISTS(SELECT 1
+                  FROM information_schema.COLUMNS
+                  WHERE TABLE_SCHEMA = db
+                    AND TABLE_NAME = 'T_TEMPLATE'
+                    AND COLUMN_NAME = 'REFS') THEN
+    ALTER TABLE `T_TEMPLATE`
+        ADD COLUMN `REFS` varchar(255) CHARACTER SET utf8mb4 NULL DEFAULT NULL COMMENT '来源代码库标识';
+    END IF;        
+
     COMMIT;
 END <CI_UBF>
 DELIMITER ;

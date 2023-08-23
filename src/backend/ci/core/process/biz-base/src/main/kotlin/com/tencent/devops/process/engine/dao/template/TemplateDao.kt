@@ -64,7 +64,11 @@ class TemplateDao {
         version: Long? = null,
         scopeType: TemplateScopeType,
         status: TemplateStatus,
-        desc: String?
+        desc: String?,
+        pipelineVersion: Int,
+        triggerVersion: Int,
+        settingVersion: Int,
+        refs: String?
     ): Long {
         with(TTemplate.T_TEMPLATE) {
             val currentTime = LocalDateTime.now()
@@ -82,7 +86,11 @@ class TemplateDao {
                 VERSION,
                 SCOPE_TYPE,
                 STATUS,
-                DESC
+                DESC,
+                PIPELINE_VERSION,
+                TRIGGER_VERSION,
+                SETTING_VERSION,
+                REFS
             )
                 .values(
                     projectId,
@@ -97,7 +105,11 @@ class TemplateDao {
                     version,
                     scopeType.name,
                     status.name,
-                    desc
+                    desc,
+                    pipelineVersion,
+                    triggerVersion,
+                    settingVersion,
+                    refs
                 )
                 .returning(VERSION)
                 .fetchOne()!!.version
@@ -121,7 +133,11 @@ class TemplateDao {
         version: Long? = null,
         scopeType: TemplateScopeType,
         status: TemplateStatus,
-        desc: String?
+        desc: String?,
+        pipelineVersion: Int,
+        triggerVersion: Int,
+        settingVersion: Int,
+        refs: String?
     ): Long {
         with(TTemplate.T_TEMPLATE) {
             val currentTime = LocalDateTime.now()
@@ -144,7 +160,11 @@ class TemplateDao {
                 VERSION,
                 SCOPE_TYPE,
                 STATUS,
-                DESC
+                DESC,
+                PIPELINE_VERSION,
+                TRIGGER_VERSION,
+                SETTING_VERSION,
+                REFS
             )
                 .values(
                     projectId,
@@ -164,7 +184,11 @@ class TemplateDao {
                     version,
                     scopeType.name,
                     status.name,
-                    desc
+                    desc,
+                    pipelineVersion,
+                    triggerVersion,
+                    settingVersion,
+                    refs
                 )
                 .returning(VERSION)
                 .fetchOne()!!.version
