@@ -71,7 +71,7 @@ func DoUpgradeAgent() error {
 		直接双击devopsDaemon.exe文件来启动，以此来保证构建进程能够正确拉起带UI的程序，所以这块无法正确查找到进程，因此暂时也不考虑windows的
 		devopsDaemon.exe文件升级。 windows需要手动升级
 	*/
-	if daemonChange && systemutil.IsLinux() {
+	if daemonChange && (systemutil.IsLinux() || systemutil.IsWindows()) {
 		tryKillAgentProcess(daemonProcess) // macos 在升级后只能使用手动重启
 	}
 
