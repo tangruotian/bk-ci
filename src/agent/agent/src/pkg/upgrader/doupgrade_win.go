@@ -32,6 +32,7 @@ package upgrader
 
 import (
 	"path/filepath"
+	"time"
 
 	"github.com/TencentBlueKing/bk-ci/agent/src/pkg/config"
 	"github.com/TencentBlueKing/bk-ci/agent/src/pkg/util/systemutil"
@@ -62,6 +63,7 @@ func windowsRestartDaemon() {
 }
 
 func startWinService(name string) bool {
+	time.Sleep(3*time.Second)
 	m, err := mgr.Connect()
 	if err != nil {
 		logs.Error(err)
