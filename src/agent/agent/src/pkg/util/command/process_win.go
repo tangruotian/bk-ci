@@ -31,10 +31,54 @@
 package command
 
 import (
+	"fmt"
+	"os"
 	"os/exec"
+	"syscall"
 
 	"github.com/TencentBlueKing/bk-ci/agentcommon/logs"
+	"github.com/pkg/errors"
 )
+
+func StartProcess(command string, args []string, workDir string, envMap map[string]string, runUser string) (int, error) {
+	cmd := exec.Command(command)
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		NoInheritHandles: true,
+	}
+
+	if len(args) > 0 {
+		cmd.Args = append(cmd.Args, args...)
+	}
+
+	if workDir != "" {
+		cmd.Dir = workDir
+	}
+
+	cmd.Env = os.Environ()
+	if envMap != nil {
+		for k, v := range envMap {
+			cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
+		}
+	}
+
+	err := setUser(cmd, runUser)
+	if err != nil {
+		logs.Error("set user failed: ", err.Error())
+		return -1, errors.New(
+			fmt.Sprintf("%s, Please check [devops.slave.user] in the {agent_dir}/.agent.properties", err.Error()))
+	}
+
+	logs.Info("cmd.Path: ", cmd.Path)
+	logs.Info("cmd.Args: ", cmd.Args)
+	logs.Info("cmd.workDir: ", cmd.Dir)
+	logs.Info("runUser: ", runUser)
+
+	err = cmd.Start()
+	if err != nil {
+		return -1, err
+	}
+	return cmd.Process.Pid, nil
+}
 
 func setUser(_ *exec.Cmd, runUser string) error {
 	logs.Info("set user(windows): ", runUser)
