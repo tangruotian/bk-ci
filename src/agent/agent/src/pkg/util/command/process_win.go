@@ -40,9 +40,12 @@ import (
 	"github.com/pkg/errors"
 )
 
+const createNewConsole = 0x00000010
+
 func StartProcess(command string, args []string, workDir string, envMap map[string]string, runUser string) (int, error) {
 	cmd := exec.Command(command)
 	cmd.SysProcAttr = &syscall.SysProcAttr{
+		CreationFlags:    createNewConsole,
 		NoInheritHandles: true,
 	}
 
