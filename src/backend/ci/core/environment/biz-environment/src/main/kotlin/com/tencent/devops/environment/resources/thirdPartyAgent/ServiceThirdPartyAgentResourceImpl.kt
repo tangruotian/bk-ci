@@ -34,6 +34,7 @@ import com.tencent.devops.common.api.pojo.OS
 import com.tencent.devops.common.api.pojo.Page
 import com.tencent.devops.common.api.pojo.Result
 import com.tencent.devops.common.api.pojo.agent.NewHeartbeatInfo
+import com.tencent.devops.common.api.util.HashUtil
 import com.tencent.devops.common.auth.api.ActionId
 import com.tencent.devops.common.web.RestResource
 import com.tencent.devops.environment.api.thirdpartyagent.ServiceThirdPartyAgentResource
@@ -280,7 +281,7 @@ class ServiceThirdPartyAgentResourceImpl @Autowired constructor(
         return Result(thirdPartyAgentService.getAgentByEnvName(projectId, envName))
     }
 
-    override fun genLocalAgent(projectId: String) {
-        TODO("Not yet implemented")
+    override fun genLocalAgent(projectId: String, userId: String): Result<String> {
+        return Result(HashUtil.encodeLongId(agentService.genLocalAgent(projectId, userId)))
     }
 }

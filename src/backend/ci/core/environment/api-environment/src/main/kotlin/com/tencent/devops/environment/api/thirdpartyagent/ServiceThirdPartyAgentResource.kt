@@ -423,6 +423,9 @@ interface ServiceThirdPartyAgentResource {
     fun genLocalAgent(
         @Parameter(description = "项目ID", required = true)
         @QueryParam("projectId")
-        projectId: String
-    )
+        projectId: String,
+        @Parameter(description = "用户ID", required = true)
+        @QueryParam("userId")
+        userId: String
+    ): Result<String>
 }
