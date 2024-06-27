@@ -165,7 +165,7 @@ class ThirdPartAgentService @Autowired constructor(
         // 本地只能安装一个
         val exists = agentDao.listImportAgent(dslContext, projectId, OS.LINUX)
             .filter { SecurityUtil.encrypt(it.secretKey) == "local" }
-        if (exists.isEmpty()) {
+        if (exists.isNotEmpty()) {
             return exists.first().id
         }
         val gateway = slaveGatewayService.getGateway(null)
