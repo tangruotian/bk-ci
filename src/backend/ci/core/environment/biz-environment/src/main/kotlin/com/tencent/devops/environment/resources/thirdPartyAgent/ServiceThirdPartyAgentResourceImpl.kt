@@ -57,6 +57,7 @@ import com.tencent.devops.environment.pojo.thirdpartyagent.pipeline.PipelineSeqI
 import com.tencent.devops.environment.service.NodeService
 import com.tencent.devops.environment.service.slave.SlaveGatewayService
 import com.tencent.devops.environment.service.thirdpartyagent.AgentPipelineService
+import com.tencent.devops.environment.service.thirdpartyagent.ThirdPartAgentService
 import com.tencent.devops.environment.service.thirdpartyagent.ThirdPartyAgentMgrService
 import com.tencent.devops.environment.service.thirdpartyagent.ThirdPartyAgentPipelineService
 import com.tencent.devops.environment.service.thirdpartyagent.UpgradeService
@@ -70,7 +71,8 @@ class ServiceThirdPartyAgentResourceImpl @Autowired constructor(
     private val agentPipelineService: AgentPipelineService,
     private val slaveGatewayService: SlaveGatewayService,
     private val permissionService: EnvironmentPermissionService,
-    private val nodeService: NodeService
+    private val nodeService: NodeService,
+    private val agentService: ThirdPartAgentService
 ) : ServiceThirdPartyAgentResource {
     override fun getAgentById(projectId: String, agentId: String): AgentResult<ThirdPartyAgent?> {
         return thirdPartyAgentService.getAgent(projectId, agentId)
@@ -276,5 +278,9 @@ class ServiceThirdPartyAgentResourceImpl @Autowired constructor(
         envName: String
     ): Result<Pair<Long?, List<EnvNodeAgent>>> {
         return Result(thirdPartyAgentService.getAgentByEnvName(projectId, envName))
+    }
+
+    override fun genLocalAgent(projectId: String) {
+        TODO("Not yet implemented")
     }
 }

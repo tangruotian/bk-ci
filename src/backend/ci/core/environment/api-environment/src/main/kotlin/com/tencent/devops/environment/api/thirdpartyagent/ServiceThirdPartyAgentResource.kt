@@ -416,4 +416,13 @@ interface ServiceThirdPartyAgentResource {
         @PathParam("envName")
         envName: String
     ): Result<Pair<Long?, List<EnvNodeAgent>>>
+
+    @Operation(summary = "针对本地构建场景添加节点")
+    @POST
+    @Path("/local_gen_agent")
+    fun genLocalAgent(
+        @Parameter(description = "项目ID", required = true)
+        @QueryParam("projectId")
+        projectId: String
+    )
 }

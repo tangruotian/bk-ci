@@ -41,4 +41,8 @@ class ThirdPartAgentService @Autowired constructor(
             lock.unlock()
         }
     }
+
+    fun genLocalAgent(projectId: String) {
+
+    }
 }
