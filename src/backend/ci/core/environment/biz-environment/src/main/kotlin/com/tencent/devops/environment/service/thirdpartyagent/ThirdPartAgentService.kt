@@ -164,7 +164,7 @@ class ThirdPartAgentService @Autowired constructor(
     fun genLocalAgent(projectId: String, userId: String): Long {
         // 本地只能安装一个
         val exists = agentDao.listImportAgent(dslContext, projectId, OS.LINUX)
-            .filter { SecurityUtil.encrypt(it.secretKey) == "local" }
+            .filter { SecurityUtil.decrypt(it.secretKey) == "local" }
         if (exists.isNotEmpty()) {
             return exists.first().id
         }
