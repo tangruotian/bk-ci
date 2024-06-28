@@ -33,7 +33,10 @@ FROM ubuntu:oracular
 
 WORKDIR /agent
 # agent相关配置部分
-COPY ./local/docker/.agent.properties .
+RUN apt -y update && apt -y install python3 && apt -y install python3-requests
+COPY ./local/docker/local.py .
+RUN python3 local.py
+# agent相关脚本
 COPY ./support-files/agent-package/script/linux .
 # worker
 COPY --from=worker /data/release/worker-agent.jar .
@@ -41,7 +44,7 @@ COPY --from=worker /data/release/worker-agent.jar .
 COPY --from=agent /data/src/agent/agent/bin/devopsAgent_linux ./devopsAgent
 COPY --from=agent /data/src/agent/agent/bin/devopsDaemon_linux ./devopsDaemon
 # jdk
-RUN apt -y update && apt -y install wget
+RUN apt -y install wget
 RUN wget https://github.com/Tencent/TencentKona-8/releases/download/8.0.9-GA/TencentKona8.0.9.b1_jdk_linux-x86_64_8u322.tar.gz
 RUN mkdir -p jdk && tar -xvf TencentKona8.0.9.b1_jdk_linux-x86_64_8u322.tar.gz --strip-components=1 -C ./jdk
 # 启动
