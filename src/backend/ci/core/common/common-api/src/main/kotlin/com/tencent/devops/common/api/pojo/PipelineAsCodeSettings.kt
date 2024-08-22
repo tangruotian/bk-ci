@@ -43,7 +43,7 @@ data class PipelineAsCodeSettings(
     companion object {
         fun initDialect(inheritedDialect: Boolean?, pipelineDialect: String?): PipelineAsCodeSettings {
             return PipelineAsCodeSettings(
-                inheritedDialect = inheritedDialect,
+                inheritedDialect = inheritedDialect ?: true,
                 // 如果继承项目方言配置,置空pipelineDialect字段,防止数据库存储多余数据
                 pipelineDialect = if (inheritedDialect == false) {
                     pipelineDialect

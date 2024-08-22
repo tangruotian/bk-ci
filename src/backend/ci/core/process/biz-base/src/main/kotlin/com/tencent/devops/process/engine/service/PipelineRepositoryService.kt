@@ -701,7 +701,13 @@ class PipelineRepositoryService constructor(
                         content = NotifyTemplateUtils.getCommonShutdownFailureContent()
                     ).takeIf { failType.isNotEmpty() }
                     PipelineSetting.defaultSetting(
-                        projectId, pipelineId, model.name, maxPipelineResNum, failSubscription
+                        projectId = projectId,
+                        pipelineId = pipelineId,
+                        pipelineName = model.name,
+                        maxPipelineResNum = maxPipelineResNum,
+                        failSubscription = failSubscription,
+                        inheritedDialect = inheritedDialect,
+                        pipelineDialect = pipelineDialect
                     )
                 }
 

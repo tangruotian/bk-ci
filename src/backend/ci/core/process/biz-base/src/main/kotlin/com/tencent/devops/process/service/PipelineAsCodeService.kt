@@ -54,8 +54,11 @@ class PipelineAsCodeService @Autowired constructor(
         val settings = pipelineSettingDao.getPipelineAsCodeSettings(
             dslContext = dslContext, projectId = projectId, pipelineId = pipelineId
         )
-        val projectInfo = projectCacheService.getProject(projectId)
-
-        return settings?.copy(projectDialect = projectInfo?.pipelineDialect)
+        return if (settings?.inheritedDialect == true) {
+            val projectDialect = projectCacheService.getProjectDialect(projectId)
+            settings.copy(projectDialect = projectDialect)
+        } else {
+            settings
+        }
     }
 }
