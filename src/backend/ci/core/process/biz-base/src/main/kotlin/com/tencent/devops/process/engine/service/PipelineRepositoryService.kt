@@ -741,7 +741,7 @@ class PipelineRepositoryService constructor(
                                 }
                                 setting.labels = labels
                             }
-                            setting.pipelineAsCodeSettings = PipelineAsCodeSettings(
+                            setting.pipelineAsCodeSettings = PipelineAsCodeSettings.initDialect(
                                 inheritedDialect = inheritedDialect,
                                 pipelineDialect = pipelineDialect
                             )

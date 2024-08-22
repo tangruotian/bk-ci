@@ -123,7 +123,7 @@ data class PipelineSetting(
                 failSubscription = null,
                 successSubscriptionList = emptyList(),
                 failSubscriptionList = failSubscription?.let { listOf(it) },
-                pipelineAsCodeSettings = PipelineAsCodeSettings(
+                pipelineAsCodeSettings = PipelineAsCodeSettings.initDialect(
                     inheritedDialect = inheritedDialect,
                     pipelineDialect = pipelineDialect
                 )

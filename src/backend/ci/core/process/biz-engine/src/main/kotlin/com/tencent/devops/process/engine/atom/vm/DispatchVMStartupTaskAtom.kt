@@ -293,7 +293,7 @@ class DispatchVMStartupTaskAtom @Autowired constructor(
         param.buildEnv?.let { buildEnv ->
             val asCode by lazy {
                 val asCodeSettings = pipelineAsCodeService.getPipelineAsCodeSettings(
-                    task.projectId, task.pipelineId, task.buildId, null
+                    projectId = task.projectId, pipelineId = task.pipelineId
                 )
                 val asCodeEnabled = asCodeSettings?.enable == true
                 val contextPair = if (asCodeEnabled) {

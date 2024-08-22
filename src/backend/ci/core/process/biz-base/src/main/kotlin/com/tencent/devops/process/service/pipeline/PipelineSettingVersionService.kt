@@ -38,6 +38,7 @@ import com.tencent.devops.process.dao.PipelineSettingDao
 import com.tencent.devops.process.dao.PipelineSettingVersionDao
 import com.tencent.devops.process.pojo.PipelineDetailInfo
 import com.tencent.devops.process.pojo.setting.PipelineSettingVersion
+import com.tencent.devops.process.service.ProjectCacheService
 import com.tencent.devops.process.service.label.PipelineGroupService
 import org.jooq.DSLContext
 import org.springframework.beans.factory.annotation.Autowired
@@ -50,7 +51,8 @@ class PipelineSettingVersionService @Autowired constructor(
     private val dslContext: DSLContext,
     private val pipelineGroupService: PipelineGroupService,
     private val pipelineSettingDao: PipelineSettingDao,
-    private val pipelineSettingVersionDao: PipelineSettingVersionDao
+    private val pipelineSettingVersionDao: PipelineSettingVersionDao,
+    private val projectCacheService: ProjectCacheService
 ) {
 
     /**
@@ -137,6 +139,13 @@ class PipelineSettingVersionService @Autowired constructor(
                     }
                 }
                 settingInfo.labelNames = labelNames
+            }
+            if (settingInfo.pipelineAsCodeSettings != null) {
+                val pipelineAsCodeSettings = settingInfo.pipelineAsCodeSettings!!
+                if (pipelineAsCodeSettings.inheritedDialect == true) {
+                    pipelineAsCodeSettings.projectDialect =
+                        projectCacheService.getProjectDialect(projectId = projectId)
+                }
             }
         }
 
