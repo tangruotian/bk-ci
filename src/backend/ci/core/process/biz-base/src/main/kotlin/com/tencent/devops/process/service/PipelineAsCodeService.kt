@@ -27,10 +27,8 @@
 
 package com.tencent.devops.process.service
 
-import com.tencent.devops.process.dao.PipelineSettingDao
 import com.tencent.devops.common.api.pojo.PipelineAsCodeSettings
-import com.tencent.devops.process.engine.dao.PipelineBuildDao
-import com.tencent.devops.process.engine.pojo.BuildInfo
+import com.tencent.devops.process.dao.PipelineSettingDao
 import org.jooq.DSLContext
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
@@ -39,31 +37,25 @@ import org.springframework.stereotype.Service
 class PipelineAsCodeService @Autowired constructor(
     private val dslContext: DSLContext,
     private val pipelineSettingDao: PipelineSettingDao,
-    private val pipelineBuildDao: PipelineBuildDao
+    private val projectCacheService: ProjectCacheService
 ) {
 
     fun asCodeEnabled(
         projectId: String,
-        pipelineId: String,
-        buildId: String,
-        buildInfo: BuildInfo?
+        pipelineId: String
     ): Boolean? {
-        return getPipelineAsCodeSettings(projectId, pipelineId, buildId, buildInfo)?.enable
+        return getPipelineAsCodeSettings(projectId, pipelineId)?.enable
     }
 
     fun getPipelineAsCodeSettings(
         projectId: String,
-        pipelineId: String,
-        buildId: String,
-        buildInfo: BuildInfo?
+        pipelineId: String
     ): PipelineAsCodeSettings? {
         val settings = pipelineSettingDao.getPipelineAsCodeSettings(
             dslContext = dslContext, projectId = projectId, pipelineId = pipelineId
         )
-//        val info = buildInfo ?: pipelineBuildDao.getBuildInfo(
-//            dslContext, projectId, pipelineId, buildId
-//        )
-//        return settings?.copy(enable = info?.yamlVersion == YamlVersion.V3_0.tag)
-        return settings
+        val projectInfo = projectCacheService.getProject(projectId)
+
+        return settings?.copy(projectDialect = projectInfo?.pipelineDialect)
     }
 }

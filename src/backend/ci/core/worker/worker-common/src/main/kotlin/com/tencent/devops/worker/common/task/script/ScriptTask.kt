@@ -119,7 +119,7 @@ open class ScriptTask : ITask() {
                 errorMessage = "Fail to run the plugin",
                 charsetType = charsetType,
                 taskId = buildTask.taskId,
-                asCodeEnabled = buildVariables.pipelineAsCodeSettings?.enable
+                asCodeSettings = buildVariables.pipelineAsCodeSettings
             )
         } catch (ignore: Throwable) {
             logger.warn("Fail to run the script task", ignore)

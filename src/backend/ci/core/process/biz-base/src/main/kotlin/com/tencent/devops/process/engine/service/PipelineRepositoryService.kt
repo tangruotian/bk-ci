@@ -231,7 +231,9 @@ class PipelineRepositoryService constructor(
         versionStatus: VersionStatus? = VersionStatus.RELEASED,
         branchName: String? = null,
         description: String? = null,
-        yamlInfo: PipelineYamlVo? = null
+        yamlInfo: PipelineYamlVo? = null,
+        inheritedDialect: Boolean? = true,
+        pipelineDialect: String? = null
     ): DeployPipelineResult {
 
         // 生成流水线ID,新流水线以p-开头，以区分以前旧数据
@@ -309,7 +311,9 @@ class PipelineRepositoryService constructor(
                     versionStatus = versionStatus,
                     branchName = branchName,
                     description = description,
-                    baseVersion = baseVersion
+                    baseVersion = baseVersion,
+                    inheritedDialect = inheritedDialect,
+                    pipelineDialect = pipelineDialect
                 )
             }
             operationLogService.addOperationLog(
@@ -629,7 +633,9 @@ class PipelineRepositoryService constructor(
         templateId: String? = null,
         versionStatus: VersionStatus? = VersionStatus.RELEASED,
         branchName: String?,
-        description: String?
+        description: String?,
+        inheritedDialect: Boolean? = true,
+        pipelineDialect: String? = null
     ): DeployPipelineResult {
         // #8161 如果只有一个草稿版本的创建操作，流水线状态也为仅有草稿
         val modelVersion = 1
@@ -735,7 +741,10 @@ class PipelineRepositoryService constructor(
                                 }
                                 setting.labels = labels
                             }
-                            setting.pipelineAsCodeSettings = PipelineAsCodeSettings()
+                            setting.pipelineAsCodeSettings = PipelineAsCodeSettings(
+                                inheritedDialect = inheritedDialect,
+                                pipelineDialect = pipelineDialect
+                            )
                             newSetting = setting
                         }
                         // 如果不需要覆盖模板内容，则直接保存传值或默认值

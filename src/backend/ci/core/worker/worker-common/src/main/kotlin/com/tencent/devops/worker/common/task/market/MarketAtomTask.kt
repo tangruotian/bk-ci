@@ -48,6 +48,7 @@ import com.tencent.devops.common.api.exception.TaskExecuteException
 import com.tencent.devops.common.api.factory.BkDiskLruFileCacheFactory
 import com.tencent.devops.common.api.pojo.ErrorCode
 import com.tencent.devops.common.api.pojo.ErrorType
+import com.tencent.devops.common.api.pojo.PipelineAsCodeSettings
 import com.tencent.devops.common.api.util.EnvUtils
 import com.tencent.devops.common.api.util.JsonUtil
 import com.tencent.devops.common.api.util.MessageUtil
@@ -55,6 +56,7 @@ import com.tencent.devops.common.api.util.ShaUtils
 import com.tencent.devops.common.archive.element.ReportArchiveElement
 import com.tencent.devops.common.pipeline.EnvReplacementParser
 import com.tencent.devops.common.pipeline.container.VMBuildContainer
+import com.tencent.devops.common.pipeline.dialect.PipelineDialectEnums
 import com.tencent.devops.common.pipeline.enums.BuildStatus
 import com.tencent.devops.common.service.utils.CommonUtils
 import com.tencent.devops.common.webhook.pojo.code.BK_CI_RUN
@@ -151,10 +153,10 @@ open class MarketAtomTask : ITask() {
         val workspacePath = workspace.absolutePath
         // 输出参数的用户命名空间：防止重名窘况
         val namespace: String? = map["namespace"] as String?
-        val asCodeEnabled = buildVariables.pipelineAsCodeSettings?.enable == true
+        val asCodeSettings = buildVariables.pipelineAsCodeSettings
         logger.info(
             "${buildTask.buildId}|RUN_ATOM|taskName=$taskName|ver=$atomVersion|code=$atomCode" +
-                "|workspace=$workspacePath|asCodeEnabled=$asCodeEnabled"
+                    "|workspace=$workspacePath|asCodeSettings=$asCodeSettings"
         )
 
         // 获取插件基本信息
@@ -228,7 +230,7 @@ open class MarketAtomTask : ITask() {
                 inputMap = input as Map<String, Any>,
                 variables = variables.plus(getContainerVariables(buildTask, buildVariables, workspacePath)),
                 acrossInfo = acrossInfo,
-                asCodeEnabled = asCodeEnabled
+                asCodeSettings = asCodeSettings
             )
         } ?: emptyMap()
         printInput(atomData, inputParams, inputTemplate)
@@ -243,7 +245,7 @@ open class MarketAtomTask : ITask() {
 
         buildTask.stepId?.let { variables = variables.plus(PIPELINE_STEP_ID to it) }
 
-        val inputVariables = if (asCodeEnabled) {
+        val inputVariables = if (asCodeSettings?.enable == true) {
             // 如果开启PAC,插件入参增加旧变量，防止开启PAC后,插件获取参数失败
             PipelineVarUtil.mixOldVarAndNewVar(variables.toMutableMap())
         } else {
@@ -483,11 +485,13 @@ open class MarketAtomTask : ITask() {
         inputMap: Map<String, Any>,
         variables: Map<String, String>,
         acrossInfo: BuildTemplateAcrossInfo?,
-        asCodeEnabled: Boolean
+        asCodeSettings: PipelineAsCodeSettings?
     ): Map<String, String> {
+        val asCodeEnabled = asCodeSettings?.enable == true
+        val dialect = PipelineDialectEnums.getDialect(asCodeSettings)
         val atomParams = mutableMapOf<String, String>()
         try {
-            if (asCodeEnabled) {
+            if (asCodeEnabled || !dialect.supportSingleCurlyBracesVar()) {
                 val customReplacement = EnvReplacementParser.getCustomExecutionContextByMap(
                     variables = variables,
                     extendNamedValueMap = listOf(

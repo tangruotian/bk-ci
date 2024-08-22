@@ -272,4 +272,8 @@ class UserProjectResourceImpl @Autowired constructor(
             projectService.getOperationalProductsByBgName(bgName)
         )
     }
+
+    override fun getProjectPipelineDialect(userId: String, projectId: String): Result<String?> {
+        return Result(projectService.getByEnglishName(englishName = projectId)?.pipelineDialect)
+    }
 }

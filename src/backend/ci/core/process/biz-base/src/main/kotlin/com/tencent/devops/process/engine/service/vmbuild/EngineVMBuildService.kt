@@ -32,6 +32,7 @@ import com.tencent.devops.common.api.exception.OperationException
 import com.tencent.devops.common.api.pojo.ErrorCode
 import com.tencent.devops.common.api.pojo.ErrorInfo
 import com.tencent.devops.common.api.pojo.ErrorType
+import com.tencent.devops.common.api.pojo.PipelineAsCodeSettings
 import com.tencent.devops.common.api.util.JsonUtil
 import com.tencent.devops.common.api.util.MessageUtil
 import com.tencent.devops.common.api.util.ObjectReplaceEnvVarUtil
@@ -46,6 +47,7 @@ import com.tencent.devops.common.pipeline.EnvReplacementParser
 import com.tencent.devops.common.pipeline.NameAndValue
 import com.tencent.devops.common.pipeline.container.NormalContainer
 import com.tencent.devops.common.pipeline.container.VMBuildContainer
+import com.tencent.devops.common.pipeline.dialect.PipelineDialectEnums
 import com.tencent.devops.common.pipeline.enums.BuildFormPropertyType
 import com.tencent.devops.common.pipeline.enums.BuildStatus
 import com.tencent.devops.common.pipeline.enums.BuildTaskStatus
@@ -192,7 +194,7 @@ class EngineVMBuildService @Autowired(required = false) constructor(
         val variablesWithType = buildVariableService.getAllVariableWithType(projectId, buildId).toMutableList()
         val model = containerBuildDetailService.getBuildModel(projectId, buildId)
         val asCodeSettings = pipelineAsCodeService.getPipelineAsCodeSettings(
-            projectId, buildInfo.pipelineId, buildId, buildInfo
+            projectId = projectId, pipelineId = buildInfo.pipelineId
         )
         Preconditions.checkNotNull(model, NotFoundException("Build Model ($buildId) is not exist"))
         var vmId = 1
@@ -511,9 +513,9 @@ class EngineVMBuildService @Autowired(required = false) constructor(
 
             return claim(
                 task = task, buildId = buildId, userId = task.starter, vmSeqId = vmSeqId,
-                asCodeEnabled = pipelineAsCodeService.asCodeEnabled(
-                    task.projectId, task.pipelineId, buildId, buildInfo
-                ) == true
+                asCodeSettings = pipelineAsCodeService.getPipelineAsCodeSettings(
+                    projectId = task.projectId, pipelineId = task.pipelineId
+                )
             )
         } finally {
             containerIdLock.unlock()
@@ -525,7 +527,7 @@ class EngineVMBuildService @Autowired(required = false) constructor(
         buildId: String,
         userId: String,
         vmSeqId: String,
-        asCodeEnabled: Boolean
+        asCodeSettings: PipelineAsCodeSettings?
     ): BuildTask {
         LOG.info("ENGINE|$buildId|BC_ING|${task.projectId}|j($vmSeqId)|[${task.taskId}-${task.taskName}]")
         return when {
@@ -633,6 +635,8 @@ class EngineVMBuildService @Autowired(required = false) constructor(
                         expiredInSecond = transMinuteTimeoutToSec(task.additionalOptions?.timeout?.toInt())
                     )
                 }
+                val asCodeEnabled = asCodeSettings?.enable == true
+                val dialect = PipelineDialectEnums.getDialect(asCodeSettings)
                 BuildTask(
                     buildId = buildId,
                     vmSeqId = vmSeqId,
@@ -645,7 +649,7 @@ class EngineVMBuildService @Autowired(required = false) constructor(
                     type = task.taskType,
                     params = task.taskParams.map {
                         // 在pipeline as code模式下，此处直接保持原文传给worker
-                        val obj = if (asCodeEnabled) {
+                        val obj = if (asCodeEnabled || !dialect.supportSingleCurlyBracesVar()) {
                             it.value
                         } else ObjectReplaceEnvVarUtil.replaceEnvVar(
                             it.value, buildVariable

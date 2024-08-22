@@ -307,7 +307,9 @@ class PipelineInfoFacadeService @Autowired constructor(
         useLabelSettings: Boolean? = false,
         useConcurrencyGroup: Boolean? = false,
         description: String? = null,
-        yamlInfo: PipelineYamlVo? = null
+        yamlInfo: PipelineYamlVo? = null,
+        inheritedDialect: Boolean? = true,
+        pipelineDialect: String? = null
     ): DeployPipelineResult {
         val watcher =
             Watcher(id = "createPipeline|$projectId|$userId|$channelCode|$checkPermission|$instanceType|$fixPipelineId")
@@ -444,7 +446,9 @@ class PipelineInfoFacadeService @Autowired constructor(
                     description = description,
                     yaml = yaml,
                     baseVersion = null,
-                    yamlInfo = yamlInfo
+                    yamlInfo = yamlInfo,
+                    inheritedDialect = inheritedDialect,
+                    pipelineDialect = pipelineDialect
                 )
                 pipelineId = result.pipelineId
                 watcher.stop()

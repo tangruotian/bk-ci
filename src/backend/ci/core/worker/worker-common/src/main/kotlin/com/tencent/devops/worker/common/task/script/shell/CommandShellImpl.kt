@@ -27,6 +27,7 @@
 
 package com.tencent.devops.worker.common.task.script.shell
 
+import com.tencent.devops.common.api.pojo.PipelineAsCodeSettings
 import com.tencent.devops.store.pojo.app.BuildEnv
 import com.tencent.devops.worker.common.task.script.ICommand
 import com.tencent.devops.worker.common.utils.ShellUtil
@@ -48,7 +49,7 @@ class CommandShellImpl : ICommand {
         stepId: String?,
         charsetType: String?,
         taskId: String?,
-        asCodeEnabled: Boolean?
+        asCodeSettings: PipelineAsCodeSettings?
     ) {
         val realCommand = parseTemplate(
             buildId = buildId,
@@ -56,7 +57,7 @@ class CommandShellImpl : ICommand {
             variables = taskParam.plus(runtimeVariables),
             dir = dir,
             taskId = taskId,
-            asCodeEnabled = asCodeEnabled
+            asCodeSettings = asCodeSettings
         )
         ShellUtil.execute(
             buildId = buildId,

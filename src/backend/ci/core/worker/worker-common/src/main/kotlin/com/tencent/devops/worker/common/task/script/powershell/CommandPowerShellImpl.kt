@@ -27,6 +27,7 @@
 
 package com.tencent.devops.worker.common.task.script.powershell
 
+import com.tencent.devops.common.api.pojo.PipelineAsCodeSettings
 import com.tencent.devops.store.pojo.app.BuildEnv
 import com.tencent.devops.worker.common.task.script.ICommand
 import java.io.File
@@ -48,7 +49,7 @@ class CommandPowerShellImpl : ICommand {
         stepId: String?,
         charsetType: String?,
         taskId: String?,
-        asCodeEnabled: Boolean?
+        asCodeSettings: PipelineAsCodeSettings?
     ) {
         TODO("Not yet implemented")
     }

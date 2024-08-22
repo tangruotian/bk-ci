@@ -25,43 +25,21 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package com.tencent.devops.worker.common.task.script.bat
+package com.tencent.devops.common.pipeline.dialect
 
-import com.tencent.devops.common.api.pojo.PipelineAsCodeSettings
-import com.tencent.devops.store.pojo.app.BuildEnv
-import com.tencent.devops.worker.common.task.script.ICommand
-import com.tencent.devops.worker.common.utils.BatScriptUtil
-import java.io.File
+/**
+ * 传统模式流水线方言
+ */
+class ClassicPipelineDialect : IPipelineDialect {
+    override fun supportSingleCurlyBracesVar() = true
 
-class CommandBatImpl : ICommand {
+    override fun supportDirectAccessVar() = true
 
-    override fun execute(
-        buildId: String,
-        script: String,
-        taskParam: Map<String, String>,
-        runtimeVariables: Map<String, String>,
-        projectId: String,
-        dir: File,
-        buildEnvs: List<BuildEnv>,
-        continueNoneZero: Boolean,
-        errorMessage: String?,
-        jobId: String?,
-        stepId: String?,
-        charsetType: String?,
-        taskId: String?,
-        asCodeSettings: PipelineAsCodeSettings?
-    ) {
-        val realCommand = parseTemplate(buildId, script, taskParam.plus(runtimeVariables), dir, taskId, asCodeSettings)
-        BatScriptUtil.execute(
-            buildId = buildId,
-            script = realCommand,
-            runtimeVariables = runtimeVariables,
-            dir = dir,
-            errorMessage = errorMessage,
-            jobId = jobId,
-            stepId = stepId,
-            charsetType = charsetType,
-            taskId = taskId
-        )
-    }
+    override fun supportOverwriteReadOnlyVar() = true
+
+    override fun supportLongVar() = true
+
+    override fun supportChineseVarName() = true
+
+    override fun supportMissingVar() = true
 }

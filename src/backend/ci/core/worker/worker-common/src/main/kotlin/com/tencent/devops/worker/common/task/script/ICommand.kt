@@ -27,9 +27,11 @@
 
 package com.tencent.devops.worker.common.task.script
 
+import com.tencent.devops.common.api.pojo.PipelineAsCodeSettings
 import com.tencent.devops.common.api.util.KeyReplacement
 import com.tencent.devops.common.api.util.ReplacementUtils
 import com.tencent.devops.common.pipeline.EnvReplacementParser
+import com.tencent.devops.common.pipeline.dialect.PipelineDialectEnums
 import com.tencent.devops.process.utils.PipelineVarUtil
 import com.tencent.devops.store.pojo.app.BuildEnv
 import com.tencent.devops.worker.common.CI_TOKEN_CONTEXT
@@ -59,7 +61,7 @@ interface ICommand {
         stepId: String? = null,
         charsetType: String? = null,
         taskId: String? = null,
-        asCodeEnabled: Boolean? = null
+        asCodeSettings: PipelineAsCodeSettings? = null
     )
 
     fun parseTemplate(
@@ -68,7 +70,7 @@ interface ICommand {
         variables: Map<String, String>,
         dir: File,
         taskId: String?,
-        asCodeEnabled: Boolean?
+        asCodeSettings: PipelineAsCodeSettings? = null
     ): String {
         // 解析跨项目模板信息
         val acrossTargetProjectId by lazy {
@@ -83,7 +85,9 @@ interface ICommand {
         ).toMutableMap()
         // 增加上下文的替换
         PipelineVarUtil.fillContextVarMap(contextMap)
-        return if (asCodeEnabled == true) {
+        val asCodeEnabled = asCodeSettings?.enable
+        val dialect = PipelineDialectEnums.getDialect(asCodeSettings)
+        return if (asCodeEnabled == true || !dialect.supportSingleCurlyBracesVar()) {
             EnvReplacementParser.parse(
                 value = command,
                 contextMap = contextMap,

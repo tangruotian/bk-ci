@@ -56,11 +56,11 @@ import com.tencent.devops.worker.common.logger.LoggerService
 import com.tencent.devops.worker.common.task.ITask
 import com.tencent.devops.worker.common.task.TaskClassType
 import com.tencent.devops.worker.common.task.script.CommandFactory
-import java.io.File
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.Request
 import okhttp3.RequestBody
 import org.slf4j.LoggerFactory
+import java.io.File
 
 @TaskClassType(classTypes = [BuildPushDockerImageElement.classType])
 @Suppress("ALL")
@@ -151,7 +151,7 @@ class BuildPushDockerImageTask : ITask() {
                 projectId = projectId,
                 dir = workspace,
                 buildEnvs = buildVariables.buildEnvs,
-                asCodeEnabled = buildVariables.pipelineAsCodeSettings?.enable
+                asCodeSettings = buildVariables.pipelineAsCodeSettings
             )
 
             LoggerService.addNormalLine("Start to build the docker image. imageName:$imageName; imageTag:$imageTag")
@@ -166,7 +166,7 @@ class BuildPushDockerImageTask : ITask() {
                     projectId = projectId,
                     dir = workspace,
                     buildEnvs = buildVariables.buildEnvs,
-                    asCodeEnabled = buildVariables.pipelineAsCodeSettings?.enable
+                    asCodeSettings = buildVariables.pipelineAsCodeSettings
                 )
             } catch (t: RuntimeException) {
                 val message = MessageUtil.getMessageByLocale(
@@ -192,7 +192,7 @@ class BuildPushDockerImageTask : ITask() {
                 projectId = projectId,
                 dir = workspace,
                 buildEnvs = buildVariables.buildEnvs,
-                asCodeEnabled = buildVariables.pipelineAsCodeSettings?.enable
+                asCodeSettings = buildVariables.pipelineAsCodeSettings
             )
         }
     }
