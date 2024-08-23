@@ -329,7 +329,7 @@ class PipelineVersionFacadeService @Autowired constructor(
             // 根据项目PAC状态进行接口调用
             val enabled = originYaml != null || request.enablePac
             val targetSettings = originSetting.copy(
-                pipelineAsCodeSettings = PipelineAsCodeSettings(enabled)
+                pipelineAsCodeSettings = originSetting.pipelineAsCodeSettings?.copy(enable = enabled)
             )
             val (versionStatus, branchName) = if (
                 enabled && request.targetAction == CodeTargetAction.CHECKOUT_BRANCH_AND_REQUEST_MERGE

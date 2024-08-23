@@ -53,4 +53,14 @@ data class PipelineAsCodeSettings(
             )
         }
     }
+
+    /**
+     * 入库时,重置方言字段值
+     */
+    fun resetDialect() {
+        projectDialect = null
+        if (inheritedDialect != true) {
+            pipelineDialect = null
+        }
+    }
 }

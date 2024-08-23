@@ -308,7 +308,10 @@ abstract class AbsProjectServiceImpl @Autowired constructor(
                 if (projectInfo.secrecy) {
                     redisOperation.addSetValue(SECRECY_PROJECT_REDIS_KEY, projectInfo.englishName)
                 }
-                setRedisPipelineDialect(projectId = projectId, pipelineDialect = projectCreateInfo.pipelineDialect)
+                setRedisPipelineDialect(
+                    projectId = projectInfo.englishName,
+                    pipelineDialect = projectCreateInfo.pipelineDialect
+                )
             }
             updateProjectRouterTag(projectCreateInfo.englishName)
         } catch (e: DuplicateKeyException) {
@@ -613,7 +616,7 @@ abstract class AbsProjectServiceImpl @Autowired constructor(
                             )
                         }
                         setRedisPipelineDialect(
-                            projectId = projectId,
+                            projectId = projectUpdateInfo.englishName,
                             pipelineDialect = projectUpdateInfo.pipelineDialect
                         )
                     }

@@ -33,11 +33,14 @@ package com.tencent.devops.common.pipeline.dialect
 interface IPipelineDialect {
     /**
      * 是否支持${}变量引用
+     *
      */
-    fun supportSingleCurlyBracesVar(): Boolean
+    fun supportUseSingleCurlyBracesVar(): Boolean
 
     /**
      * 是否支持直接访问变量
+     *
+     * 是否可以通过${{aaa}}还是必须通过${variables.aaa}
      */
     fun supportDirectAccessVar(): Boolean
 

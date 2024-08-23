@@ -102,12 +102,12 @@ import com.tencent.devops.process.utils.PIPELINE_VMSEQ_ID
 import com.tencent.devops.process.utils.PipelineVarUtil
 import com.tencent.devops.store.api.container.ServiceContainerAppResource
 import com.tencent.devops.store.pojo.app.BuildEnv
-import java.time.LocalDateTime
-import java.util.concurrent.TimeUnit
-import javax.ws.rs.NotFoundException
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
+import java.time.LocalDateTime
+import java.util.concurrent.TimeUnit
+import javax.ws.rs.NotFoundException
 
 @Suppress(
     "LongMethod",
@@ -635,7 +635,6 @@ class EngineVMBuildService @Autowired(required = false) constructor(
                         expiredInSecond = transMinuteTimeoutToSec(task.additionalOptions?.timeout?.toInt())
                     )
                 }
-                val asCodeEnabled = asCodeSettings?.enable == true
                 val dialect = PipelineDialectEnums.getDialect(asCodeSettings)
                 BuildTask(
                     buildId = buildId,
@@ -648,12 +647,14 @@ class EngineVMBuildService @Autowired(required = false) constructor(
                     executeCount = task.executeCount,
                     type = task.taskType,
                     params = task.taskParams.map {
-                        // 在pipeline as code模式下，此处直接保持原文传给worker
-                        val obj = if (asCodeEnabled || !dialect.supportSingleCurlyBracesVar()) {
+                        // 支持${}变量引用,变量直接在服务端替换
+                        val obj = if (dialect.supportUseSingleCurlyBracesVar()) {
+                            ObjectReplaceEnvVarUtil.replaceEnvVar(
+                                it.value, buildVariable
+                            )
+                        } else {
                             it.value
-                        } else ObjectReplaceEnvVarUtil.replaceEnvVar(
-                            it.value, buildVariable
-                        )
+                        }
                         it.key to JsonUtil.toJson(obj, formatted = false)
                     }.filter {
                         !it.first.startsWith("@type")

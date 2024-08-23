@@ -31,7 +31,7 @@ package com.tencent.devops.common.pipeline.dialect
  * 约束模式语法风格
  */
 class ConstrainedPipelineDialect : IPipelineDialect {
-    override fun supportSingleCurlyBracesVar() = false
+    override fun supportUseSingleCurlyBracesVar() = false
 
     override fun supportDirectAccessVar() = false
 

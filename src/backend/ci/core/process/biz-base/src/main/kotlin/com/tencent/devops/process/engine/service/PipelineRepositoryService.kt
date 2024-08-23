@@ -1747,6 +1747,7 @@ class PipelineRepositoryService constructor(
         isTemplate: Boolean
     ): PipelineName {
         var oldName: String = setting.pipelineName
+        setting.pipelineAsCodeSettings?.resetDialect()
         (context ?: dslContext).transaction { t ->
             val transactionContext = DSL.using(t)
             val old = pipelineSettingDao.getSetting(

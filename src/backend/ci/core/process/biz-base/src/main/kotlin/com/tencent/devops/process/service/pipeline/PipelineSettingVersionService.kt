@@ -143,7 +143,7 @@ class PipelineSettingVersionService @Autowired constructor(
             }
             if (settingInfo.pipelineAsCodeSettings != null) {
                 val pipelineAsCodeSettings = settingInfo.pipelineAsCodeSettings!!
-                if (pipelineAsCodeSettings.inheritedDialect == true) {
+                if (pipelineAsCodeSettings.inheritedDialect != false) {
                     pipelineAsCodeSettings.projectDialect =
                         projectCacheService.getProjectDialect(projectId = projectId)
                 }
