@@ -85,9 +85,8 @@ interface ICommand {
         ).toMutableMap()
         // 增加上下文的替换
         PipelineVarUtil.fillContextVarMap(contextMap)
-        val asCodeEnabled = asCodeSettings?.enable
         val dialect = PipelineDialectEnums.getDialect(asCodeSettings)
-        return if (asCodeEnabled == true || !dialect.supportSingleCurlyBracesVar()) {
+        return if (!dialect.supportUseSingleCurlyBracesVar()) {
             EnvReplacementParser.parse(
                 value = command,
                 contextMap = contextMap,

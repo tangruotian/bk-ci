@@ -400,7 +400,7 @@ class PipelineBuildService(
         val longVarNames = context.pipelineParamMap.filter {
             it.value.value.toString().length >= PIPELINE_VARIABLES_STRING_LENGTH_MAX
         }.map { it.key }
-        if (!pipelineDialect.supportLongVarValue()) {
+        if (longVarNames.isNotEmpty() && !pipelineDialect.supportLongVarValue()) {
             throw ErrorCodeException(
                 errorCode = ProcessMessageCode.ERROR_PIPELINE_VARIABLES_OUT_OF_LENGTH,
                 params = arrayOf(longVarNames.toString())

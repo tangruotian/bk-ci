@@ -644,7 +644,7 @@ class PipelineVersionFacadeService @Autowired constructor(
             yamlSupported = yamlSupported,
             yamlInvalidMsg = msg,
             updater = resource.updater,
-            updateTime = resource.updateTime
+            updateTime = resource.updateTime?.timestampmilli()
         )
     }
 

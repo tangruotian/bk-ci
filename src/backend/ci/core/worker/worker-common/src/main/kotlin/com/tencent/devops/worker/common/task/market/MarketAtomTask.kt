@@ -491,7 +491,7 @@ open class MarketAtomTask : ITask() {
         val dialect = PipelineDialectEnums.getDialect(asCodeSettings)
         val atomParams = mutableMapOf<String, String>()
         try {
-            if (asCodeEnabled || !dialect.supportSingleCurlyBracesVar()) {
+            if (!dialect.supportUseSingleCurlyBracesVar()) {
                 val customReplacement = EnvReplacementParser.getCustomExecutionContextByMap(
                     variables = variables,
                     extendNamedValueMap = listOf(

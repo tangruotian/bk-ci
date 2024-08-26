@@ -56,5 +56,5 @@ data class PipelineVersionWithModel(
     @get:Schema(title = "更新操作人", required = true)
     val updater: String?,
     @get:Schema(title = "版本修改时间", required = true)
-    val updateTime: LocalDateTime?
+    val updateTime: Long?
 )
