@@ -28,6 +28,8 @@
 package com.tencent.devops.process.service
 
 import com.tencent.devops.common.api.pojo.PipelineAsCodeSettings
+import com.tencent.devops.common.pipeline.dialect.IPipelineDialect
+import com.tencent.devops.common.pipeline.dialect.PipelineDialectEnums
 import com.tencent.devops.process.dao.PipelineSettingDao
 import org.jooq.DSLContext
 import org.springframework.beans.factory.annotation.Autowired
@@ -47,18 +49,34 @@ class PipelineAsCodeService @Autowired constructor(
         return getPipelineAsCodeSettings(projectId, pipelineId)?.enable
     }
 
-    fun getPipelineAsCodeSettings(
-        projectId: String,
-        pipelineId: String
-    ): PipelineAsCodeSettings? {
+    fun getPipelineAsCodeSettings(projectId: String, pipelineId: String): PipelineAsCodeSettings? {
         val settings = pipelineSettingDao.getPipelineAsCodeSettings(
             dslContext = dslContext, projectId = projectId, pipelineId = pipelineId
         )
-        return if (settings?.inheritedDialect == true) {
+        return getPipelineAsCodeSettings(projectId = projectId, asCodeSettings = settings)
+    }
+
+    fun getPipelineAsCodeSettings(
+        projectId: String,
+        asCodeSettings: PipelineAsCodeSettings?
+    ): PipelineAsCodeSettings? {
+        return if (asCodeSettings?.inheritedDialect != false) {
             val projectDialect = projectCacheService.getProjectDialect(projectId)
-            settings.copy(projectDialect = projectDialect)
+            asCodeSettings?.copy(projectDialect = projectDialect)
         } else {
-            settings
+            asCodeSettings
         }
+    }
+
+    fun getPipelineDialect(
+        projectId: String,
+        asCodeSettings: PipelineAsCodeSettings?
+    ): IPipelineDialect {
+        return PipelineDialectEnums.getDialect(
+            getPipelineAsCodeSettings(
+                projectId = projectId,
+                asCodeSettings = asCodeSettings
+            )
+        )
     }
 }

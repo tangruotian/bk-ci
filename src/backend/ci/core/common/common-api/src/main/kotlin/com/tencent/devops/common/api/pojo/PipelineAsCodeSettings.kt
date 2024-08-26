@@ -59,7 +59,7 @@ data class PipelineAsCodeSettings(
      */
     fun resetDialect() {
         projectDialect = null
-        if (inheritedDialect != true) {
+        if (inheritedDialect != false) {
             pipelineDialect = null
         }
     }

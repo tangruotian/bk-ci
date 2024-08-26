@@ -54,6 +54,7 @@ import com.tencent.devops.process.engine.service.PipelineRepositoryService
 import com.tencent.devops.process.engine.service.PipelineRuntimeService
 import com.tencent.devops.process.pojo.BuildId
 import com.tencent.devops.process.pojo.app.StartBuildContext
+import com.tencent.devops.process.service.PipelineAsCodeService
 import com.tencent.devops.process.service.ProjectCacheService
 import com.tencent.devops.process.util.BuildMsgUtils
 import com.tencent.devops.process.utils.BK_CI_MATERIAL_ID
@@ -80,6 +81,7 @@ import com.tencent.devops.process.utils.PIPELINE_START_USER_ID
 import com.tencent.devops.process.utils.PIPELINE_START_USER_NAME
 import com.tencent.devops.process.utils.PIPELINE_START_WEBHOOK_USER_ID
 import com.tencent.devops.process.utils.PIPELINE_UPDATE_USER
+import com.tencent.devops.process.utils.PIPELINE_VARIABLES_STRING_LENGTH_MAX
 import com.tencent.devops.process.utils.PIPELINE_VERSION
 import com.tencent.devops.process.utils.PROJECT_NAME
 import com.tencent.devops.process.utils.PROJECT_NAME_CHINESE
@@ -98,7 +100,8 @@ class PipelineBuildService(
     private val projectCacheService: ProjectCacheService,
     private val pipelineUrlBean: PipelineUrlBean,
     private val simpleRateLimiter: SimpleRateLimiter,
-    private val buildIdGenerator: BuildIdGenerator
+    private val buildIdGenerator: BuildIdGenerator,
+    private val pipelineAsCodeService: PipelineAsCodeService
 ) {
     companion object {
         private val NO_LIMIT_CHANNEL = listOf(ChannelCode.CODECC)
@@ -223,6 +226,8 @@ class PipelineBuildService(
                 versionName = versionName,
                 yamlVersion = yamlVersion
             )
+            // 校验流水线启动变量长度
+            checkBuildVariablesLength(context = context)
 
             val interceptResult = pipelineInterceptorChain.filter(
                 InterceptData(
@@ -385,5 +390,21 @@ class PipelineBuildService(
                 BuildParameters(key = TraceTag.TRACE_HEADER_DEVOPS_BIZID, value = bizId)
         }
 //        return originStartParams
+    }
+
+    private fun checkBuildVariablesLength(context: StartBuildContext) {
+        val pipelineDialect = pipelineAsCodeService.getPipelineDialect(
+            projectId = context.projectId,
+            asCodeSettings = context.pipelineSetting?.pipelineAsCodeSettings
+        )
+        val longVarNames = context.pipelineParamMap.filter {
+            it.value.value.toString().length >= PIPELINE_VARIABLES_STRING_LENGTH_MAX
+        }.map { it.key }
+        if (!pipelineDialect.supportLongVarValue()) {
+            throw ErrorCodeException(
+                errorCode = ProcessMessageCode.ERROR_PIPELINE_VARIABLES_OUT_OF_LENGTH,
+                params = arrayOf(longVarNames.toString())
+            )
+        }
     }
 }

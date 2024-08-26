@@ -52,7 +52,7 @@ interface IPipelineDialect {
     /**
      * 是否支持长变量
      */
-    fun supportLongVar(): Boolean
+    fun supportLongVarValue(): Boolean
 
     /**
      * 是否支持中文变量名

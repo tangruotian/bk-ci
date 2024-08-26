@@ -642,7 +642,9 @@ class PipelineVersionFacadeService @Autowired constructor(
             baseVersion = resource.baseVersion,
             baseVersionName = baseResource?.versionName,
             yamlSupported = yamlSupported,
-            yamlInvalidMsg = msg
+            yamlInvalidMsg = msg,
+            updater = resource.updater,
+            updateTime = resource.updateTime
         )
     }
 

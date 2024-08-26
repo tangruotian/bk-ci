@@ -37,7 +37,7 @@ class ConstrainedPipelineDialect : IPipelineDialect {
 
     override fun supportOverwriteReadOnlyVar() = false
 
-    override fun supportLongVar() = false
+    override fun supportLongVarValue() = false
 
     override fun supportChineseVarName() = false
 
