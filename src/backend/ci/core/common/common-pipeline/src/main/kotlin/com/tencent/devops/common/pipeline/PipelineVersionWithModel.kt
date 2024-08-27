@@ -30,7 +30,6 @@ package com.tencent.devops.common.pipeline
 import com.tencent.devops.common.pipeline.pojo.PipelineModelAndSetting
 import com.tencent.devops.common.pipeline.pojo.transfer.PreviewResponse
 import io.swagger.v3.oas.annotations.media.Schema
-import java.time.LocalDateTime
 
 data class PipelineVersionWithModel(
     @get:Schema(title = "版本号（流水线唯一递增）", required = true)

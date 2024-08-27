@@ -70,6 +70,7 @@ import com.tencent.devops.process.pojo.pipeline.PrefetchReleaseResult
 import com.tencent.devops.process.pojo.setting.PipelineVersionSimple
 import com.tencent.devops.process.service.builds.PipelineBuildFacadeService
 import com.tencent.devops.process.service.label.PipelineGroupService
+import com.tencent.devops.process.service.pipeline.PipelineDialectService
 import com.tencent.devops.process.service.pipeline.PipelineSettingFacadeService
 import com.tencent.devops.process.service.pipeline.PipelineTransferYamlService
 import com.tencent.devops.process.service.template.TemplateFacadeService
@@ -105,7 +106,8 @@ class PipelineVersionFacadeService @Autowired constructor(
     private val pipelineViewGroupService: PipelineViewGroupService,
     private val pipelineBuildSummaryDao: PipelineBuildSummaryDao,
     private val pipelineBuildDao: PipelineBuildDao,
-    private val buildLogPrinter: BuildLogPrinter
+    private val buildLogPrinter: BuildLogPrinter,
+    private val pipelineDialectService: PipelineDialectService
 ) {
 
     companion object {
@@ -319,7 +321,11 @@ class PipelineVersionFacadeService @Autowired constructor(
                 create = false,
                 versionStatus = VersionStatus.RELEASED,
                 channelCode = pipeline.channelCode,
-                yamlInfo = request.yamlInfo
+                yamlInfo = request.yamlInfo,
+                pipelineDialect = pipelineDialectService.getPipelineDialect(
+                    projectId = projectId,
+                    asCodeSettings = originSetting.pipelineAsCodeSettings
+                )
             )
             val originYaml = pipelineYamlFacadeService.getPipelineYamlInfo(projectId, pipelineId, version)
             // 如果不匹配已有状态则报错，需要用户重新刷新页面
@@ -567,8 +573,8 @@ class PipelineVersionFacadeService @Autowired constructor(
             useSubscriptionSettings = request.useSubscriptionSettings,
             useLabelSettings = request.useLabelSettings,
             useConcurrencyGroup = request.useConcurrencyGroup,
-            inheritedDialect = request.inheritedDialect,
-            pipelineDialect = request.pipelineDialect
+            inheritedDialectSetting = request.inheritedDialect,
+            pipelineDialectSetting = request.pipelineDialect
         )
     }
 

@@ -104,8 +104,8 @@ data class PipelineSetting(
             pipelineName: String,
             maxPipelineResNum: Int? = null,
             failSubscription: Subscription? = null,
-            inheritedDialect: Boolean? = null,
-            pipelineDialect: String? = null
+            inheritedDialectSetting: Boolean? = null,
+            pipelineDialectSetting: String? = null
         ): PipelineSetting {
             return PipelineSetting(
                 projectId = projectId,
@@ -124,8 +124,8 @@ data class PipelineSetting(
                 successSubscriptionList = emptyList(),
                 failSubscriptionList = failSubscription?.let { listOf(it) },
                 pipelineAsCodeSettings = PipelineAsCodeSettings.initDialect(
-                    inheritedDialect = inheritedDialect,
-                    pipelineDialect = pipelineDialect
+                    inheritedDialect = inheritedDialectSetting,
+                    pipelineDialect = pipelineDialectSetting
                 )
             )
         }

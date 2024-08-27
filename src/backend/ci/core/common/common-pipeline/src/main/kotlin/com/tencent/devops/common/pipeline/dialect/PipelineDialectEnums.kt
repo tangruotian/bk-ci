@@ -42,8 +42,8 @@ enum class PipelineDialectEnums(val dialect: IPipelineDialect) {
 
     companion object {
         fun getDialect(
-            projectDialect: String?,
             inheritedDialect: Boolean?,
+            projectDialect: String?,
             pipelineDialect: String?
         ): IPipelineDialect {
             return when {
@@ -63,8 +63,8 @@ enum class PipelineDialectEnums(val dialect: IPipelineDialect) {
             if (asCodeSettings == null) return CLASSIC.dialect
             return with(asCodeSettings) {
                 getDialect(
-                    projectDialect = projectDialect,
                     inheritedDialect = inheritedDialect,
+                    projectDialect = projectDialect,
                     pipelineDialect = pipelineDialect
                 )
             }
