@@ -120,11 +120,11 @@ import com.tencent.devops.process.pojo.template.TemplateType
 import com.tencent.devops.process.pojo.template.TemplateVersion
 import com.tencent.devops.process.pojo.template.TemplateWithPermission
 import com.tencent.devops.process.service.ParamFacadeService
+import com.tencent.devops.process.service.PipelineAsCodeService
 import com.tencent.devops.process.service.PipelineInfoFacadeService
 import com.tencent.devops.process.service.PipelineRemoteAuthService
 import com.tencent.devops.process.service.StageTagService
 import com.tencent.devops.process.service.label.PipelineGroupService
-import com.tencent.devops.process.service.pipeline.PipelineDialectService
 import com.tencent.devops.process.service.pipeline.PipelineSettingFacadeService
 import com.tencent.devops.process.util.TempNotifyTemplateUtils
 import com.tencent.devops.process.utils.KEY_PIPELINE_ID
@@ -180,7 +180,7 @@ class TemplateFacadeService @Autowired constructor(
     private val pipelineSettingFacadeService: PipelineSettingFacadeService,
     private val templateCommonService: TemplateCommonService,
     private val templateSettingService: TemplateSettingService,
-    private val pipelineDialectService: PipelineDialectService
+    private val pipelineAsCodeService: PipelineAsCodeService
 ) {
 
     @Value("\${template.maxSyncInstanceNum:10}")
@@ -2292,7 +2292,7 @@ class TemplateFacadeService @Autowired constructor(
             )
         }
         // 模版先都统一使用项目配置
-        val projectDialect = projectId?.let { pipelineDialectService.getProjectDialect(projectId = it) }
+        val projectDialect = projectId?.let { pipelineAsCodeService.getProjectDialect(projectId = it) }
         modelCheckPlugin.checkModelIntegrity(
             model = template,
             projectId = projectId,

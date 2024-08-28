@@ -95,7 +95,6 @@ import com.tencent.devops.process.pojo.pipeline.DeployPipelineResult
 import com.tencent.devops.process.pojo.pipeline.PipelineYamlVo
 import com.tencent.devops.process.pojo.template.TemplateType
 import com.tencent.devops.process.service.label.PipelineGroupService
-import com.tencent.devops.process.service.pipeline.PipelineDialectService
 import com.tencent.devops.process.service.pipeline.PipelineSettingFacadeService
 import com.tencent.devops.process.service.pipeline.PipelineTransferYamlService
 import com.tencent.devops.process.service.view.PipelineViewGroupService
@@ -140,7 +139,7 @@ class PipelineInfoFacadeService @Autowired constructor(
     private val yamlFacadeService: PipelineYamlFacadeService,
     private val operationLogService: PipelineOperationLogService,
     private val pipelineAuthorizationService: PipelineAuthorizationService,
-    private val pipelineDialectService: PipelineDialectService
+    private val pipelineAsCodeService: PipelineAsCodeService
 ) {
 
     @Value("\${process.deletedPipelineStoreDays:30}")
@@ -431,7 +430,7 @@ class PipelineInfoFacadeService @Autowired constructor(
                 }
 
                 watcher.start("deployPipeline")
-                val pipelineDialect = pipelineDialectService.getPipelineDialect(
+                val pipelineDialect = pipelineAsCodeService.getPipelineDialect(
                     projectId = projectId,
                     asCodeSettings = setting?.pipelineAsCodeSettings,
                     inheritedDialectSetting = inheritedDialectSetting,
@@ -1117,7 +1116,7 @@ class PipelineInfoFacadeService @Autowired constructor(
                 modelCheckPlugin.beforeDeleteElementInExistsModel(existModel, model, param)
             }
             val pipelineSetting = savedSetting ?: pipelineSettingFacadeService.getSettingInfo(projectId, pipelineId)
-            val pipelineDialect = pipelineDialectService.getPipelineDialect(
+            val pipelineDialect = pipelineAsCodeService.getPipelineDialect(
                 projectId = projectId,
                 pipelineSetting?.pipelineAsCodeSettings
             )

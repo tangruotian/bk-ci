@@ -38,44 +38,44 @@ class PipelineDialectTest {
         Assertions.assertEquals(PipelineDialectEnums.CLASSIC.dialect, actual)
 
         val actual2 = PipelineDialectEnums.getDialect(
-            PipelineDialectEnums.CLASSIC.name,
-            null,
-            null
+            inheritedDialect = null,
+            projectDialect = PipelineDialectEnums.CLASSIC.name,
+            pipelineDialect = null
         )
         Assertions.assertEquals(PipelineDialectEnums.CLASSIC.dialect, actual2)
 
         val actual3 = PipelineDialectEnums.getDialect(
-            null,
-            true,
-            null
+            inheritedDialect = true,
+            projectDialect = null,
+            pipelineDialect = null
         )
         Assertions.assertEquals(PipelineDialectEnums.CLASSIC.dialect, actual3)
 
         val actual4 = PipelineDialectEnums.getDialect(
-            null,
-            true,
-            PipelineDialectEnums.CONSTRAINED.name
+            inheritedDialect = true,
+            projectDialect = null,
+            pipelineDialect = PipelineDialectEnums.CONSTRAINED.name
         )
         Assertions.assertEquals(PipelineDialectEnums.CLASSIC.dialect, actual4)
 
         val actual5 = PipelineDialectEnums.getDialect(
-            null,
-            false,
-            PipelineDialectEnums.CONSTRAINED.name
+            inheritedDialect = false,
+            projectDialect = null,
+            pipelineDialect = PipelineDialectEnums.CONSTRAINED.name
         )
         Assertions.assertEquals(PipelineDialectEnums.CONSTRAINED.dialect, actual5)
 
         val actual6 = PipelineDialectEnums.getDialect(
-            PipelineDialectEnums.CLASSIC.name,
-            true,
-            PipelineDialectEnums.CONSTRAINED.name
+            inheritedDialect = true,
+            projectDialect = PipelineDialectEnums.CLASSIC.name,
+            pipelineDialect = PipelineDialectEnums.CONSTRAINED.name
         )
         Assertions.assertEquals(PipelineDialectEnums.CLASSIC.dialect, actual6)
 
         val actual7 = PipelineDialectEnums.getDialect(
-            PipelineDialectEnums.CLASSIC.name,
-            false,
-            PipelineDialectEnums.CONSTRAINED.name
+            inheritedDialect = false,
+            projectDialect = PipelineDialectEnums.CLASSIC.name,
+            pipelineDialect = PipelineDialectEnums.CONSTRAINED.name
         )
         Assertions.assertEquals(PipelineDialectEnums.CONSTRAINED.dialect, actual7)
     }
