@@ -33,6 +33,7 @@ import com.tencent.devops.common.api.pojo.ErrorCode
 import com.tencent.devops.common.api.pojo.ErrorCode.USER_SCRIPT_TASK_FAIL
 import com.tencent.devops.common.api.pojo.ErrorType
 import com.tencent.devops.common.api.util.MessageUtil
+import com.tencent.devops.common.pipeline.dialect.PipelineDialectEnums
 import com.tencent.devops.common.pipeline.pojo.element.agent.LinuxScriptElement
 import com.tencent.devops.common.pipeline.pojo.element.agent.WindowsScriptElement
 import com.tencent.devops.process.pojo.BuildTask
@@ -97,7 +98,20 @@ open class ScriptTask : ITask() {
                 }.toMap()
             } else vars
         }
+        val runtimeContextVariables = buildVariables.contextVariables.plus(
+            buildTask.buildContextVariable ?: emptyMap()
+        )
         val projectId = buildVariables.projectId
+        val asCodeSettings = buildVariables.pipelineAsCodeSettings
+
+        val dialect = PipelineDialectEnums.getDialect(asCodeSettings)
+        val contextMap = if (dialect.supportDirectAccessVar()) {
+            runtimeVariables.plus(
+                TaskUtil.getTaskEnvVariables(buildVariables, buildTask.taskId)
+            )
+        } else {
+            runtimeContextVariables
+        }
 
         ScriptEnvUtils.cleanEnv(buildId, workspace)
         ScriptEnvUtils.cleanContext(buildId, workspace)
@@ -109,9 +123,7 @@ open class ScriptTask : ITask() {
                 stepId = buildTask.stepId,
                 script = script,
                 taskParam = taskParams,
-                runtimeVariables = runtimeVariables.plus(
-                    TaskUtil.getTaskEnvVariables(buildVariables, buildTask.taskId)
-                ),
+                runtimeVariables = contextMap,
                 projectId = projectId,
                 dir = workspace,
                 buildEnvs = takeBuildEnvs(buildTask, buildVariables),

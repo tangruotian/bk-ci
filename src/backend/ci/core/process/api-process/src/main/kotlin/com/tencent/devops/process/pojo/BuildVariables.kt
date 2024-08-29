@@ -63,5 +63,7 @@ data class BuildVariables(
     @get:Schema(title = "容器类型", required = false)
     val containerType: String? = null,
     @get:Schema(title = "YAML流水线特殊配置", required = false)
-    val pipelineAsCodeSettings: PipelineAsCodeSettings? = null
+    val pipelineAsCodeSettings: PipelineAsCodeSettings? = null,
+    @get:Schema(title = "构建上下文,有且仅有上下文变量,不能有var表中的变量", required = true)
+    var contextVariables: Map<String, String> = mapOf()
 )

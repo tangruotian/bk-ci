@@ -48,7 +48,6 @@ import com.tencent.devops.common.api.exception.TaskExecuteException
 import com.tencent.devops.common.api.factory.BkDiskLruFileCacheFactory
 import com.tencent.devops.common.api.pojo.ErrorCode
 import com.tencent.devops.common.api.pojo.ErrorType
-import com.tencent.devops.common.api.pojo.PipelineAsCodeSettings
 import com.tencent.devops.common.api.util.EnvUtils
 import com.tencent.devops.common.api.util.JsonUtil
 import com.tencent.devops.common.api.util.MessageUtil
@@ -56,6 +55,7 @@ import com.tencent.devops.common.api.util.ShaUtils
 import com.tencent.devops.common.archive.element.ReportArchiveElement
 import com.tencent.devops.common.pipeline.EnvReplacementParser
 import com.tencent.devops.common.pipeline.container.VMBuildContainer
+import com.tencent.devops.common.pipeline.dialect.IPipelineDialect
 import com.tencent.devops.common.pipeline.dialect.PipelineDialectEnums
 import com.tencent.devops.common.pipeline.enums.BuildStatus
 import com.tencent.devops.common.service.utils.CommonUtils
@@ -197,6 +197,9 @@ open class MarketAtomTask : ITask() {
                 acrossProjectId = acrossInfo?.targetProjectId
             )
         }.toMap()
+        val contextVariables = buildVariables.contextVariables.plus(
+            buildTask.buildContextVariable ?: emptyMap()
+        )
 
         // 解析输入输出字段模板
         val props = JsonUtil.toMutableMap(atomData.props!!)
@@ -224,13 +227,21 @@ open class MarketAtomTask : ITask() {
             )
         )
 
+        val dialect = PipelineDialectEnums.getDialect(asCodeSettings)
+        val contextMap = if (dialect.supportDirectAccessVar()) {
+            variables
+        } else {
+            contextVariables
+        }.plus(
+            getContainerVariables(buildTask, buildVariables, workspacePath)
+        )
         // 解析并打印插件执行传入的所有参数
         val inputParams = map["input"]?.let { input ->
             parseInputParams(
                 inputMap = input as Map<String, Any>,
-                variables = variables.plus(getContainerVariables(buildTask, buildVariables, workspacePath)),
+                variables = contextMap,
                 acrossInfo = acrossInfo,
-                asCodeSettings = asCodeSettings
+                dialect = dialect
             )
         } ?: emptyMap()
         printInput(atomData, inputParams, inputTemplate)
@@ -485,13 +496,23 @@ open class MarketAtomTask : ITask() {
         inputMap: Map<String, Any>,
         variables: Map<String, String>,
         acrossInfo: BuildTemplateAcrossInfo?,
-        asCodeSettings: PipelineAsCodeSettings?
+        dialect: IPipelineDialect
     ): Map<String, String> {
-        val asCodeEnabled = asCodeSettings?.enable == true
-        val dialect = PipelineDialectEnums.getDialect(asCodeSettings)
         val atomParams = mutableMapOf<String, String>()
         try {
-            if (!dialect.supportUseSingleCurlyBracesVar()) {
+            if (dialect.supportUseSingleCurlyBracesVar()) {
+                inputMap.forEach { (name, value) ->
+                    // 修复插件input环境变量替换问题 #5682
+                    atomParams[name] = EnvUtils.parseEnv(
+                        command = JsonUtil.toJson(value),
+                        data = variables
+                    ).parseCredentialValue(null, acrossInfo?.targetProjectId)
+                }
+            }
+
+            if (EnvReplacementParser.containsExpressions(atomParams)) {
+                val newInputMap = mutableMapOf<String, Any>()
+                newInputMap.putAll(atomParams)
                 val customReplacement = EnvReplacementParser.getCustomExecutionContextByMap(
                     variables = variables,
                     extendNamedValueMap = listOf(
@@ -499,7 +520,7 @@ open class MarketAtomTask : ITask() {
                         CIKeywordsService.CIKeywordsRuntimeNamedValue()
                     )
                 )
-                inputMap.forEach { (name, value) ->
+                newInputMap.forEach { (name, value) ->
                     logger.info("parseInputParams|name=$name|value=$value")
                     atomParams[name] = EnvReplacementParser.parse(
                         value = JsonUtil.toJson(value),
@@ -508,14 +529,6 @@ open class MarketAtomTask : ITask() {
                         contextPair = customReplacement,
                         functions = SpecialFunctions.functions,
                         output = SpecialFunctions.output
-                    ).parseCredentialValue(null, acrossInfo?.targetProjectId)
-                }
-            } else {
-                inputMap.forEach { (name, value) ->
-                    // 修复插件input环境变量替换问题 #5682
-                    atomParams[name] = EnvUtils.parseEnv(
-                        command = JsonUtil.toJson(value),
-                        data = variables
                     ).parseCredentialValue(null, acrossInfo?.targetProjectId)
                 }
             }

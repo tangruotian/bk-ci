@@ -154,7 +154,7 @@ class StageControl @Autowired constructor(
             containers = containers,
             latestSummary = "init",
             watcher = watcher,
-            variables = pipelineContextService.getAllBuildContext(variables), // 传递全量上下文
+            variables = pipelineContextService.fillAllBuildContext(variables), // 传递全量上下文
             pipelineAsCodeEnabled = pipelineAsCodeEnabled,
             executeCount = executeCount,
             previousStageStatus = addPreviousStageStatus(stage),

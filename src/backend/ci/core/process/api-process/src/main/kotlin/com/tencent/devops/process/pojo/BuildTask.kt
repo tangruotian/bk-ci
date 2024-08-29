@@ -60,7 +60,9 @@ data class BuildTask(
     @get:Schema(title = "容器类型", required = false)
     val containerType: String? = null,
     @get:Schema(title = "签名token", required = false)
-    val signToken: String? = null
+    val signToken: String? = null,
+    @get:Schema(title = "构建上下文参数", required = false)
+    var buildContextVariable: Map<String, String>? = null
 ) {
 
     /**

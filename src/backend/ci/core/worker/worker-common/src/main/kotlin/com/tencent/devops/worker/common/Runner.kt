@@ -212,6 +212,7 @@ object Runner {
         var failed = false
         LoggerService.addNormalLine("Start the runner at workspace(${workspacePathFile.absolutePath})")
         logger.info("Start the runner at workspace(${workspacePathFile.absolutePath})")
+        LoggerService.addNormalLine("Start the runner contextVariables:${buildVariables.contextVariables}")
 
         var waitCount = 0
         loop@ while (true) {
@@ -416,6 +417,7 @@ object Runner {
         val taskBuildVariable = buildTask.buildVariable?.toMutableMap() ?: mutableMapOf()
         val variablesWithType = jobBuildVariables.variablesWithType
             .associateBy { it.key }
+        val taskBuildContextVariable = buildTask.buildContextVariable?.toMutableMap() ?: mutableMapOf()
         // job 变量能取到真实readonly，保证task 变量readOnly属性不会改变
         val taskBuildParameters = taskBuildVariable.map { (key, value) ->
             BuildParameters(key = key, value = value, readOnly = variablesWithType[key]?.readOnly)
@@ -425,6 +427,7 @@ object Runner {
         jobBuildVariables.variablesWithType = variablesWithType
             .plus(taskBuildParameters)
             .values.toList()
+        jobBuildVariables.contextVariables = jobBuildVariables.contextVariables.plus(taskBuildContextVariable)
 
         // 填充插件级的ENV参数
         val customEnvStr = buildTask.params?.get(Element::customEnv.name)
@@ -437,6 +440,7 @@ object Runner {
             }
             if (customEnv.isNullOrEmpty()) return
             val jobVariables = jobBuildVariables.variables.toMutableMap()
+            val jobContextVariables = jobBuildVariables.contextVariables.toMutableMap()
             customEnv.forEach {
                 if (!it.key.isNullOrBlank()) {
                     // 解决BUG:93319235,将Task的env变量key加env.前缀塞入variables，塞入之前需要对value做替换
@@ -449,10 +453,12 @@ object Runner {
                     )
                     jobVariables["envs.${it.key}"] = value
                     taskBuildVariable[it.key!!] = value
+                    jobContextVariables["envs.${it.key}"] = value
                 }
             }
             buildTask.buildVariable = taskBuildVariable
             jobBuildVariables.variables = jobVariables
+            jobBuildVariables.contextVariables = jobContextVariables
         }
     }
 }

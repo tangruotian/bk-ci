@@ -44,6 +44,7 @@ import org.apache.tools.ant.filters.StringInputStream
 import org.slf4j.LoggerFactory
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import java.util.regex.Pattern
 
 @Suppress(
     "LoopWithTooManyJumpStatements",
@@ -56,6 +57,7 @@ import java.io.InputStreamReader
 object EnvReplacementParser {
 
     private val logger = LoggerFactory.getLogger(EnvReplacementParser::class.java)
+    private val expressionPattern = Pattern.compile("\\$[{]{2}([^$^{}]+)[}]{2}")
 
     /**
      * 根据环境变量map进行object处理并保持原类型
@@ -311,6 +313,21 @@ object EnvReplacementParser {
             }
         }
         return result
+    }
+
+    fun containsExpressions(value: String?): Boolean {
+        if (value == null) return false
+        return expressionPattern.matcher(value).find()
+    }
+
+    fun containsExpressions(values: Map<String, Any>?): Boolean {
+        if (values == null) return false
+        values.forEach {
+            if (expressionPattern.matcher(JsonUtil.toJson(it.value)).find()) {
+                return true
+            }
+        }
+        return false
     }
 
     /**

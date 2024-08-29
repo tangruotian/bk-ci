@@ -198,8 +198,15 @@ class PipelineContextService @Autowired constructor(
         return contextMap
     }
 
-    fun getAllBuildContext(buildVar: Map<String, String>): Map<String, String> {
+    fun fillAllBuildContext(buildVar: Map<String, String>): Map<String, String> {
         val allContext = buildVar.toMutableMap()
+        // 将流水线变量按预置映射关系做替换
+        PipelineVarUtil.fillContextVarMap(allContext, buildVar)
+        return allContext
+    }
+
+    fun getAllBuildContext(buildVar: Map<String, String>): Map<String, String> {
+        val allContext = mutableMapOf<String, String>()
         // 将流水线变量按预置映射关系做替换
         PipelineVarUtil.fillContextVarMap(allContext, buildVar)
         return allContext
