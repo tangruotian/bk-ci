@@ -606,18 +606,5 @@ echo true"""
 
         val command14 = "\${{ strToTime(\${{variables.date}}) > strToTime('2023-03-14 12:06:21') }}"
         Assertions.assertTrue(EnvReplacementParser.containsExpressions(command14))
-
-        val map = mapOf(
-            "command" to command,
-            "command1" to command1,
-            "command4" to command4
-        )
-        Assertions.assertTrue(EnvReplacementParser.containsExpressions(map))
-
-        val map2 = mapOf(
-            "command4" to command4,
-            "command5" to command5
-        )
-        Assertions.assertFalse(EnvReplacementParser.containsExpressions(map2))
     }
 }

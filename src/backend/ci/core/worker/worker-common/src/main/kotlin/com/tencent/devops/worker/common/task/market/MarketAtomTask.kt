@@ -500,37 +500,34 @@ open class MarketAtomTask : ITask() {
     ): Map<String, String> {
         val atomParams = mutableMapOf<String, String>()
         try {
-            if (dialect.supportUseSingleCurlyBracesVar()) {
-                inputMap.forEach { (name, value) ->
-                    // 修复插件input环境变量替换问题 #5682
-                    atomParams[name] = EnvUtils.parseEnv(
-                        command = JsonUtil.toJson(value),
-                        data = variables
-                    ).parseCredentialValue(null, acrossInfo?.targetProjectId)
-                }
-            }
-
-            if (EnvReplacementParser.containsExpressions(atomParams)) {
-                val newInputMap = mutableMapOf<String, Any>()
-                newInputMap.putAll(atomParams)
-                val customReplacement = EnvReplacementParser.getCustomExecutionContextByMap(
-                    variables = variables,
-                    extendNamedValueMap = listOf(
-                        CredentialUtils.CredentialRuntimeNamedValue(targetProjectId = acrossInfo?.targetProjectId),
-                        CIKeywordsService.CIKeywordsRuntimeNamedValue()
-                    )
+            val customReplacement = EnvReplacementParser.getCustomExecutionContextByMap(
+                variables = variables,
+                extendNamedValueMap = listOf(
+                    CredentialUtils.CredentialRuntimeNamedValue(targetProjectId = acrossInfo?.targetProjectId),
+                    CIKeywordsService.CIKeywordsRuntimeNamedValue()
                 )
-                newInputMap.forEach { (name, value) ->
-                    logger.info("parseInputParams|name=$name|value=$value")
-                    atomParams[name] = EnvReplacementParser.parse(
-                        value = JsonUtil.toJson(value),
+            )
+            inputMap.forEach { (name, value) ->
+                var newValue = JsonUtil.toJson(value)
+                // 修复插件input环境变量替换问题 #5682
+                if (dialect.supportUseSingleCurlyBracesVar()) {
+                    newValue = EnvUtils.parseEnv(
+                        command = newValue,
+                        data = variables
+                    )
+                }
+                if (customReplacement != null && EnvReplacementParser.containsExpressions(newValue)) {
+                    newValue = EnvReplacementParser.parse(
+                        value = newValue,
                         contextMap = variables,
                         onlyExpression = true,
                         contextPair = customReplacement,
                         functions = SpecialFunctions.functions,
                         output = SpecialFunctions.output
-                    ).parseCredentialValue(null, acrossInfo?.targetProjectId)
+                    )
                 }
+                newValue = newValue.parseCredentialValue(null, acrossInfo?.targetProjectId)
+                atomParams[name] = newValue
             }
         } catch (e: Throwable) {
             logger.error("plugin input illegal! ", e)

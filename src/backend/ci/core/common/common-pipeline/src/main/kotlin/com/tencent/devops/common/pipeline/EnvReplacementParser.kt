@@ -320,16 +320,6 @@ object EnvReplacementParser {
         return expressionPattern.matcher(value).find()
     }
 
-    fun containsExpressions(values: Map<String, Any>?): Boolean {
-        if (values == null) return false
-        values.forEach {
-            if (expressionPattern.matcher(JsonUtil.toJson(it.value)).find()) {
-                return true
-            }
-        }
-        return false
-    }
-
     /**
      * 表达式括号项 ${{ }}
      * @param startIndex 括号开始位置即 $ 位置
