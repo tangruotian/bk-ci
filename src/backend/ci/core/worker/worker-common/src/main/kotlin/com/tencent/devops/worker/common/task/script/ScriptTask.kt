@@ -32,6 +32,7 @@ import com.tencent.devops.common.api.exception.TaskExecuteException
 import com.tencent.devops.common.api.pojo.ErrorCode
 import com.tencent.devops.common.api.pojo.ErrorCode.USER_SCRIPT_TASK_FAIL
 import com.tencent.devops.common.api.pojo.ErrorType
+import com.tencent.devops.common.api.util.JsonUtil
 import com.tencent.devops.common.api.util.MessageUtil
 import com.tencent.devops.common.pipeline.dialect.PipelineDialectType
 import com.tencent.devops.common.pipeline.pojo.element.agent.LinuxScriptElement
@@ -100,6 +101,11 @@ open class ScriptTask : ITask() {
         }
         val runtimeContextVariables = buildVariables.contextVariables.plus(
             buildTask.buildContextVariable ?: emptyMap()
+        )
+        logger.info(
+            "Start to execute the script task," +
+                    "runtimeVariables:${JsonUtil.toJson(runtimeVariables)}, " +
+                    "runtimeContextVariables:${JsonUtil.toJson(runtimeContextVariables)}"
         )
         val projectId = buildVariables.projectId
         val asCodeSettings = buildVariables.pipelineAsCodeSettings

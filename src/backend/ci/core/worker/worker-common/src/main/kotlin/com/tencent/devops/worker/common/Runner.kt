@@ -212,7 +212,10 @@ object Runner {
         var failed = false
         LoggerService.addNormalLine("Start the runner at workspace(${workspacePathFile.absolutePath})")
         logger.info("Start the runner at workspace(${workspacePathFile.absolutePath})")
-        logger.info("Start the runner with contextVariables:${buildVariables.contextVariables}")
+        logger.info(
+            "Start the runner with variables: ${JsonUtil.toJson(buildVariables.variables)}," +
+                    "contextVariables:${JsonUtil.toJson(buildVariables.contextVariables)}"
+        )
 
         var waitCount = 0
         loop@ while (true) {

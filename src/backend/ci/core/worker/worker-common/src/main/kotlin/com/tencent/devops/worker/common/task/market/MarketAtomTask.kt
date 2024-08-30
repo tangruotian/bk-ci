@@ -200,6 +200,11 @@ open class MarketAtomTask : ITask() {
         val contextVariables = buildVariables.contextVariables.plus(
             buildTask.buildContextVariable ?: emptyMap()
         )
+        logger.info(
+            "Start to execute the script task," +
+                    "variables:${JsonUtil.toJson(variables)}, " +
+                    "contextVariables:${JsonUtil.toJson(contextVariables)}"
+        )
 
         // 解析输入输出字段模板
         val props = JsonUtil.toMutableMap(atomData.props!!)
@@ -509,7 +514,6 @@ open class MarketAtomTask : ITask() {
             )
             inputMap.forEach { (name, value) ->
                 var newValue = JsonUtil.toJson(value)
-                // 修复插件input环境变量替换问题 #5682
                 if (dialect.supportUseSingleCurlyBracesVar()) {
                     newValue = EnvUtils.parseEnv(
                         command = newValue,
