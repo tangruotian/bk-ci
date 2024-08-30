@@ -61,7 +61,7 @@ import com.tencent.devops.common.auth.api.pojo.SubjectScopeInfo
 import com.tencent.devops.common.auth.code.ProjectAuthServiceCode
 import com.tencent.devops.common.client.Client
 import com.tencent.devops.common.client.ClientTokenService
-import com.tencent.devops.common.pipeline.dialect.PipelineDialectEnums
+import com.tencent.devops.common.pipeline.dialect.PipelineDialectType
 import com.tencent.devops.common.redis.RedisOperation
 import com.tencent.devops.common.service.Profile
 import com.tencent.devops.common.service.utils.LogUtils
@@ -1612,7 +1612,7 @@ abstract class AbsProjectServiceImpl @Autowired constructor(
         return redisOperation.hget(PROJECT_PIPELINE_DIALECT_REDIS_KEY, projectId)
             ?: run {
                 val pipelineDialect =
-                    getByEnglishName(englishName = projectId)?.pipelineDialect ?: PipelineDialectEnums.CLASSIC.name
+                    getByEnglishName(englishName = projectId)?.pipelineDialect ?: PipelineDialectType.CLASSIC.name
                 setRedisPipelineDialect(projectId = projectId, pipelineDialect = pipelineDialect)
                 pipelineDialect
             }
@@ -1622,7 +1622,7 @@ abstract class AbsProjectServiceImpl @Autowired constructor(
         redisOperation.hset(
             PROJECT_PIPELINE_DIALECT_REDIS_KEY,
             projectId,
-            pipelineDialect ?: PipelineDialectEnums.CLASSIC.name
+            pipelineDialect ?: PipelineDialectType.CLASSIC.name
         )
     }
 

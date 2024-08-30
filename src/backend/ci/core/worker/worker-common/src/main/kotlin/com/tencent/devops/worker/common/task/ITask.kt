@@ -31,7 +31,7 @@ import com.tencent.devops.common.api.exception.TaskExecuteException
 import com.tencent.devops.common.api.pojo.ErrorCode
 import com.tencent.devops.common.api.pojo.ErrorType
 import com.tencent.devops.common.pipeline.dialect.IPipelineDialect
-import com.tencent.devops.common.pipeline.dialect.PipelineDialectEnums
+import com.tencent.devops.common.pipeline.dialect.PipelineDialectType
 import com.tencent.devops.common.pipeline.pojo.BuildParameters
 import com.tencent.devops.process.pojo.BuildTask
 import com.tencent.devops.process.pojo.BuildVariables
@@ -72,7 +72,7 @@ abstract class ITask {
             .filter { it.readOnly == true }
             .map { it.key }
             .collect(Collectors.toList())
-        dialect = PipelineDialectEnums.getDialect(buildVariables.pipelineAsCodeSettings)
+        dialect = PipelineDialectType.getPipelineDialect(buildVariables.pipelineAsCodeSettings)
         execute(buildTask, buildVariables, workspace)
     }
 

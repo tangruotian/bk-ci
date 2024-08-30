@@ -143,6 +143,7 @@ class PipelineContextService @Autowired constructor(
                 }
             }
             buildCiContext(contextMap, variables)
+            fillVariableContext(contextMap, variables)
         } catch (ignore: Throwable) {
             logger.warn("BKSystemErrorMonitor|buildContextFailed|", ignore)
         }
@@ -209,6 +210,7 @@ class PipelineContextService @Autowired constructor(
         val allContext = mutableMapOf<String, String>()
         // 将流水线变量按预置映射关系做替换
         PipelineVarUtil.fillContextVarMap(allContext, buildVar)
+        fillVariableContext(allContext, buildVar)
         return allContext
     }
 
@@ -235,6 +237,17 @@ class PipelineContextService @Autowired constructor(
             contextMap["ci.event"] = PIPELINE_GIT_TIME_TRIGGER_KIND
         } else if (!variables[PIPELINE_GIT_EVENT].isNullOrBlank()) {
             contextMap["ci.event"] = variables[PIPELINE_GIT_EVENT]!!
+        }
+    }
+
+    private fun fillVariableContext(
+        contextMap: MutableMap<String, String>,
+        variables: Map<String, String>
+    ) {
+        variables.filter {
+            it.key.startsWith(PipelineVarUtil.CONTEXT_PREFIX)
+        }.forEach {
+            contextMap[it.key] = it.value
         }
     }
 

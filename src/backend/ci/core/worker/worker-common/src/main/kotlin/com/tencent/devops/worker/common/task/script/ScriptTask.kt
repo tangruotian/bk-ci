@@ -33,7 +33,7 @@ import com.tencent.devops.common.api.pojo.ErrorCode
 import com.tencent.devops.common.api.pojo.ErrorCode.USER_SCRIPT_TASK_FAIL
 import com.tencent.devops.common.api.pojo.ErrorType
 import com.tencent.devops.common.api.util.MessageUtil
-import com.tencent.devops.common.pipeline.dialect.PipelineDialectEnums
+import com.tencent.devops.common.pipeline.dialect.PipelineDialectType
 import com.tencent.devops.common.pipeline.pojo.element.agent.LinuxScriptElement
 import com.tencent.devops.common.pipeline.pojo.element.agent.WindowsScriptElement
 import com.tencent.devops.process.pojo.BuildTask
@@ -104,7 +104,7 @@ open class ScriptTask : ITask() {
         val projectId = buildVariables.projectId
         val asCodeSettings = buildVariables.pipelineAsCodeSettings
 
-        val dialect = PipelineDialectEnums.getDialect(asCodeSettings)
+        val dialect = PipelineDialectType.getPipelineDialect(asCodeSettings)
         val contextMap = if (dialect.supportDirectAccessVar()) {
             runtimeVariables.plus(
                 TaskUtil.getTaskEnvVariables(buildVariables, buildTask.taskId)

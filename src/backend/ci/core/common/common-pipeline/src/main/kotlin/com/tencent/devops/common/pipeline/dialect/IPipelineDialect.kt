@@ -40,14 +40,9 @@ interface IPipelineDialect {
     /**
      * 是否支持直接访问变量
      *
-     * 是否可以通过${{aaa}}还是必须通过${variables.aaa}
+     * 是否可以通过${{aaa}}方式访问变量,还是必须通过上下文才能访问
      */
     fun supportDirectAccessVar(): Boolean
-
-    /**
-     * 是否支持重写只读变量
-     */
-    fun supportOverwriteReadOnlyVar(): Boolean
 
     /**
      * 是否支持长变量

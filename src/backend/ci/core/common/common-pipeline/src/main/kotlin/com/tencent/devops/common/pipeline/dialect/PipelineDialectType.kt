@@ -33,7 +33,7 @@ import com.tencent.devops.common.api.pojo.PipelineAsCodeSettings
  * 流水线语法风格
  *
  */
-enum class PipelineDialectEnums(val dialect: IPipelineDialect) {
+enum class PipelineDialectType(val dialect: IPipelineDialect) {
     // 传统模式
     CLASSIC(ClassicPipelineDialect()),
 
@@ -41,28 +41,51 @@ enum class PipelineDialectEnums(val dialect: IPipelineDialect) {
     CONSTRAINED(ConstrainedPipelineDialect());
 
     companion object {
-        fun getDialect(
+        fun getPipelineDialectType(
+            inheritedDialect: Boolean?,
+            projectDialect: String?,
+            pipelineDialect: String?
+        ): PipelineDialectType {
+            return when {
+                // inheritedDialect为空和true都继承项目配置
+                inheritedDialect != false && projectDialect != null ->
+                    PipelineDialectType.valueOf(projectDialect)
+
+                inheritedDialect == false && pipelineDialect != null ->
+                    PipelineDialectType.valueOf(pipelineDialect)
+
+                else ->
+                    CLASSIC
+            }
+        }
+
+        fun getPipelineDialectType(asCodeSettings: PipelineAsCodeSettings?): PipelineDialectType {
+            if (asCodeSettings == null) return CLASSIC
+            return with(asCodeSettings) {
+                getPipelineDialectType(
+                    inheritedDialect = inheritedDialect,
+                    projectDialect = projectDialect,
+                    pipelineDialect = pipelineDialect
+                )
+            }
+        }
+
+        fun getPipelineDialect(
             inheritedDialect: Boolean?,
             projectDialect: String?,
             pipelineDialect: String?
         ): IPipelineDialect {
-            return when {
-                // inheritedDialect为空和true都继承项目配置
-                inheritedDialect != false && projectDialect != null ->
-                    PipelineDialectEnums.valueOf(projectDialect).dialect
-
-                inheritedDialect == false && pipelineDialect != null ->
-                    PipelineDialectEnums.valueOf(pipelineDialect).dialect
-
-                else ->
-                    CLASSIC.dialect
-            }
+            return getPipelineDialectType(
+                inheritedDialect = inheritedDialect,
+                projectDialect = projectDialect,
+                pipelineDialect = pipelineDialect
+            ).dialect
         }
 
-        fun getDialect(asCodeSettings: PipelineAsCodeSettings?): IPipelineDialect {
+        fun getPipelineDialect(asCodeSettings: PipelineAsCodeSettings?): IPipelineDialect {
             if (asCodeSettings == null) return CLASSIC.dialect
             return with(asCodeSettings) {
-                getDialect(
+                getPipelineDialect(
                     inheritedDialect = inheritedDialect,
                     projectDialect = projectDialect,
                     pipelineDialect = pipelineDialect

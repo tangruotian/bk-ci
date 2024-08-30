@@ -29,7 +29,7 @@ package com.tencent.devops.process.service
 
 import com.tencent.devops.common.api.pojo.PipelineAsCodeSettings
 import com.tencent.devops.common.pipeline.dialect.IPipelineDialect
-import com.tencent.devops.common.pipeline.dialect.PipelineDialectEnums
+import com.tencent.devops.common.pipeline.dialect.PipelineDialectType
 import com.tencent.devops.process.dao.PipelineSettingDao
 import org.jooq.DSLContext
 import org.springframework.beans.factory.annotation.Autowired
@@ -69,12 +69,12 @@ class PipelineAsCodeService @Autowired constructor(
         return when {
             asCodeSettings == null -> {
                 val projectDialect =
-                    projectCacheService.getProjectDialect(projectId) ?: PipelineDialectEnums.CLASSIC.name
+                    projectCacheService.getProjectDialect(projectId) ?: PipelineDialectType.CLASSIC.name
                 PipelineAsCodeSettings(inheritedDialect = true, projectDialect = projectDialect)
             }
             asCodeSettings.inheritedDialect != false -> {
                 val projectDialect =
-                    projectCacheService.getProjectDialect(projectId) ?: PipelineDialectEnums.CLASSIC.name
+                    projectCacheService.getProjectDialect(projectId) ?: PipelineDialectType.CLASSIC.name
                 asCodeSettings.copy(projectDialect = projectDialect)
             }
             else ->
@@ -87,15 +87,15 @@ class PipelineAsCodeService @Autowired constructor(
      */
     fun getProjectDialect(projectId: String): IPipelineDialect {
         val projectDialect =
-            projectCacheService.getProjectDialect(projectId) ?: PipelineDialectEnums.CLASSIC.name
-        return PipelineDialectEnums.valueOf(projectDialect).dialect
+            projectCacheService.getProjectDialect(projectId) ?: PipelineDialectType.CLASSIC.name
+        return PipelineDialectType.valueOf(projectDialect).dialect
     }
 
     /**
      * 获取流水线方言,根据流水线设置
      */
     fun getPipelineDialect(projectId: String, asCodeSettings: PipelineAsCodeSettings?): IPipelineDialect {
-        return PipelineDialectEnums.getDialect(
+        return PipelineDialectType.getPipelineDialect(
             getPipelineAsCodeSettings(
                 projectId = projectId,
                 asCodeSettings = asCodeSettings
@@ -114,11 +114,11 @@ class PipelineAsCodeService @Autowired constructor(
     ): IPipelineDialect {
         val projectDialect = projectCacheService.getProjectDialect(projectId = projectId)
         return if (asCodeSettings != null) {
-            PipelineDialectEnums.getDialect(
+            PipelineDialectType.getPipelineDialect(
                 asCodeSettings.copy(projectDialect = projectDialect)
             )
         } else {
-            PipelineDialectEnums.getDialect(
+            PipelineDialectType.getPipelineDialect(
                 inheritedDialect = inheritedDialectSetting,
                 projectDialect = projectDialect,
                 pipelineDialect = pipelineDialectSetting

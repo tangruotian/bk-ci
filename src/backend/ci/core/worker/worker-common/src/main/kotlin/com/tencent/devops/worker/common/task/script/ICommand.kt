@@ -31,7 +31,7 @@ import com.tencent.devops.common.api.pojo.PipelineAsCodeSettings
 import com.tencent.devops.common.api.util.KeyReplacement
 import com.tencent.devops.common.api.util.ReplacementUtils
 import com.tencent.devops.common.pipeline.EnvReplacementParser
-import com.tencent.devops.common.pipeline.dialect.PipelineDialectEnums
+import com.tencent.devops.common.pipeline.dialect.PipelineDialectType
 import com.tencent.devops.process.utils.PipelineVarUtil
 import com.tencent.devops.store.pojo.app.BuildEnv
 import com.tencent.devops.worker.common.CI_TOKEN_CONTEXT
@@ -85,7 +85,7 @@ interface ICommand {
         ).toMutableMap()
         // 增加上下文的替换
         PipelineVarUtil.fillContextVarMap(contextMap)
-        val dialect = PipelineDialectEnums.getDialect(asCodeSettings)
+        val dialect = PipelineDialectType.getPipelineDialect(asCodeSettings)
 
         var newCommand = command
         if (dialect.supportUseSingleCurlyBracesVar()) {
@@ -114,7 +114,7 @@ interface ICommand {
         }
         if (EnvReplacementParser.containsExpressions(newCommand)) {
             newCommand = EnvReplacementParser.parse(
-                value = command,
+                value = newCommand,
                 contextMap = contextMap,
                 onlyExpression = true,
                 contextPair = EnvReplacementParser.getCustomExecutionContextByMap(

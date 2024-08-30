@@ -32,7 +32,7 @@ import com.tencent.devops.common.api.exception.ErrorCodeException
 import com.tencent.devops.common.api.util.JsonUtil
 import com.tencent.devops.common.auth.api.pojo.SubjectScopeInfo
 import com.tencent.devops.common.auth.callback.AuthConstants
-import com.tencent.devops.common.pipeline.dialect.PipelineDialectEnums
+import com.tencent.devops.common.pipeline.dialect.PipelineDialectType
 import com.tencent.devops.common.redis.RedisOperation
 import com.tencent.devops.model.project.tables.records.TProjectRecord
 import com.tencent.devops.project.PROJECT_PIPELINE_DIALECT_REDIS_KEY
@@ -327,7 +327,7 @@ class ProjectApprovalService @Autowired constructor(
             redisOperation.hset(
                 PROJECT_PIPELINE_DIALECT_REDIS_KEY,
                 projectId,
-                projectUpdateInfo.pipelineDialect ?: PipelineDialectEnums.CLASSIC.name
+                projectUpdateInfo.pipelineDialect ?: PipelineDialectType.CLASSIC.name
             )
         }
     }

@@ -37,11 +37,12 @@ import com.tencent.devops.common.auth.api.ActionId
 import com.tencent.devops.common.auth.api.ResourceTypeId
 import com.tencent.devops.common.pipeline.Model
 import com.tencent.devops.common.pipeline.container.TriggerContainer
+import com.tencent.devops.common.pipeline.dialect.IPipelineDialect
+import com.tencent.devops.common.pipeline.dialect.PipelineDialectType
 import com.tencent.devops.common.pipeline.enums.BuildFormPropertyType
 import com.tencent.devops.common.pipeline.enums.ChannelCode
 import com.tencent.devops.common.pipeline.enums.StartType
 import com.tencent.devops.common.pipeline.pojo.BuildParameters
-import com.tencent.devops.common.pipeline.pojo.setting.PipelineSetting
 import com.tencent.devops.common.redis.concurrent.SimpleRateLimiter
 import com.tencent.devops.common.service.trace.TraceTag
 import com.tencent.devops.process.bean.PipelineUrlBean
@@ -65,6 +66,7 @@ import com.tencent.devops.process.utils.PIPELINE_BUILD_ID
 import com.tencent.devops.process.utils.PIPELINE_BUILD_MSG
 import com.tencent.devops.process.utils.PIPELINE_BUILD_URL
 import com.tencent.devops.process.utils.PIPELINE_CREATE_USER
+import com.tencent.devops.process.utils.PIPELINE_DIALECT
 import com.tencent.devops.process.utils.PIPELINE_ID
 import com.tencent.devops.process.utils.PIPELINE_NAME
 import com.tencent.devops.process.utils.PIPELINE_RETRY_BUILD_ID
@@ -180,6 +182,16 @@ class PipelineBuildService(
                     )
                 }
             }
+            val asCodeSettings = pipelineAsCodeService.getPipelineAsCodeSettings(
+                projectId = pipeline.projectId,
+                asCodeSettings = setting.pipelineAsCodeSettings
+            )
+            val pipelineDialectType = PipelineDialectType.getPipelineDialectType(asCodeSettings = asCodeSettings)
+            // 校验流水线启动变量长度
+            checkBuildVariablesLength(
+                pipelineDialect = pipelineDialectType.dialect,
+                startValues = startValues
+            )
 
             // 如果指定了版本号，则设置指定的版本号
             pipeline.version = signPipelineVersion ?: pipeline.version
@@ -207,7 +219,8 @@ class PipelineBuildService(
                 pipeline = pipeline,
                 projectVO = projectVO,
                 channelCode = channelCode,
-                isMobile = isMobile
+                isMobile = isMobile,
+                pipelineDialectType = pipelineDialectType.name
             )
 
             val context = StartBuildContext.init(
@@ -226,12 +239,6 @@ class PipelineBuildService(
                 debug = debug ?: false,
                 versionName = versionName,
                 yamlVersion = yamlVersion
-            )
-            // 校验流水线启动变量长度
-            checkBuildVariablesLength(
-                projectId = pipeline.projectId,
-                setting = setting,
-                startValues = startValues
             )
 
             val interceptResult = pipelineInterceptorChain.filter(
@@ -275,7 +282,8 @@ class PipelineBuildService(
         projectVO: ProjectVO?,
         channelCode: ChannelCode,
         isMobile: Boolean,
-        debug: Boolean? = false
+        debug: Boolean? = false,
+        pipelineDialectType: String
     ) {
         val userName = when (startType) {
             StartType.PIPELINE -> pipelineParamMap[PIPELINE_START_PIPELINE_USER_ID]?.value
@@ -366,6 +374,7 @@ class PipelineBuildService(
             ),
             readOnly = true
         )
+        pipelineParamMap[PIPELINE_DIALECT] = BuildParameters(PIPELINE_DIALECT, pipelineDialectType, readOnly = true)
         // 自定义触发源材料信息
         startValues?.get(BK_CI_MATERIAL_ID)?.let {
             pipelineParamMap[BK_CI_MATERIAL_ID] = BuildParameters(
@@ -398,14 +407,9 @@ class PipelineBuildService(
     }
 
     private fun checkBuildVariablesLength(
-        projectId: String,
-        setting: PipelineSetting?,
+        pipelineDialect: IPipelineDialect,
         startValues: Map<String, String>?
     ) {
-        val pipelineDialect = pipelineAsCodeService.getPipelineDialect(
-            projectId = projectId,
-            asCodeSettings = setting?.pipelineAsCodeSettings
-        )
         val longVarNames = startValues?.filter {
             it.value.length >= PIPELINE_VARIABLES_STRING_LENGTH_MAX
         }?.map { it.key }

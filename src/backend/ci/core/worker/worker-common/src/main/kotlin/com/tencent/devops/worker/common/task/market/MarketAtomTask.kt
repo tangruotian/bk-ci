@@ -56,7 +56,7 @@ import com.tencent.devops.common.archive.element.ReportArchiveElement
 import com.tencent.devops.common.pipeline.EnvReplacementParser
 import com.tencent.devops.common.pipeline.container.VMBuildContainer
 import com.tencent.devops.common.pipeline.dialect.IPipelineDialect
-import com.tencent.devops.common.pipeline.dialect.PipelineDialectEnums
+import com.tencent.devops.common.pipeline.dialect.PipelineDialectType
 import com.tencent.devops.common.pipeline.enums.BuildStatus
 import com.tencent.devops.common.service.utils.CommonUtils
 import com.tencent.devops.common.webhook.pojo.code.BK_CI_RUN
@@ -227,7 +227,7 @@ open class MarketAtomTask : ITask() {
             )
         )
 
-        val dialect = PipelineDialectEnums.getDialect(asCodeSettings)
+        val dialect = PipelineDialectType.getPipelineDialect(asCodeSettings)
         val contextMap = if (dialect.supportDirectAccessVar()) {
             variables
         } else {

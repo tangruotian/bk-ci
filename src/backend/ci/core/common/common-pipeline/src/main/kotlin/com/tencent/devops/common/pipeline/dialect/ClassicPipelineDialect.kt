@@ -35,8 +35,6 @@ class ClassicPipelineDialect : IPipelineDialect {
 
     override fun supportDirectAccessVar() = true
 
-    override fun supportOverwriteReadOnlyVar() = true
-
     override fun supportLongVarValue() = true
 
     override fun supportChineseVarName() = true
