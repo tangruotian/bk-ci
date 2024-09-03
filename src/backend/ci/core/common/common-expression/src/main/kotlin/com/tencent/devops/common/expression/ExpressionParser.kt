@@ -30,6 +30,7 @@ package com.tencent.devops.common.expression
 import com.tencent.devops.common.expression.context.ContextValueNode
 import com.tencent.devops.common.expression.context.DictionaryContextData
 import com.tencent.devops.common.expression.context.PipelineContextData
+import com.tencent.devops.common.expression.expression.EvaluationOptions
 import com.tencent.devops.common.expression.expression.ExpressionConstants
 import com.tencent.devops.common.expression.expression.IExpressionNode
 import com.tencent.devops.common.expression.expression.IFunctionInfo
@@ -74,8 +75,9 @@ object ExpressionParser {
         nameValue: List<NamedValueInfo>,
         fetchValue: Boolean
     ): Any? {
+        // TODO: EvaluationOptions 需要根据模式设置不同的选项
         val result = createTree(expression.legalizeExpression(), null, nameValue, null)!!
-            .evaluate(null, context, null, null)
+            .evaluate(null, context, EvaluationOptions(false), null)
         if (!fetchValue) {
             return result
         }
@@ -90,9 +92,9 @@ object ExpressionParser {
         val context = ExecutionContext(DictionaryContextData())
         val nameValue = mutableListOf<NamedValueInfo>()
         fillContextByMap(contextMap, context, nameValue)
-
+        // TODO: EvaluationOptions 需要根据模式设置不同的选项
         val result = createTree(expression.legalizeExpression(), null, nameValue, null)!!
-            .evaluate(null, context, null, null)
+            .evaluate(null, context, EvaluationOptions(false), null)
 
         if (!fetchValue) {
             return result

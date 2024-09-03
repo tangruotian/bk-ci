@@ -27,6 +27,7 @@
 
 package com.tencent.devops.common.expression.expression.sdk.operators
 
+import com.tencent.devops.common.expression.ContextNotFoundException
 import com.tencent.devops.common.expression.ExecutionContext
 import com.tencent.devops.common.expression.context.ContextValueNode
 import com.tencent.devops.common.expression.expression.EvaluationResult
@@ -48,8 +49,7 @@ class Index : Container() {
     override val traceFullyRealized = true
 
     override fun convertToExpression(): String {
-        // 验证我们是否可以简化表达式，我们宁愿返回
-        // github.sha 然后 github['sha'] 所以我们检查这是否是一个简单的案例。
+        // 验证我们是否可以简化表达式，我们宁愿返回 github.sha 然后 github['sha'] 所以我们检查这是否是一个简单的案例
         return if (parameters[1] is Literal &&
             (parameters[1] as Literal).value is String &&
             ExpressionUtility.isLegalKeyword((parameters[1] as Literal).value as String)
@@ -68,7 +68,7 @@ class Index : Container() {
         }
 
         return parameters[0].convertToRealizedExpression(context) +
-            "[${parameters[1].convertToRealizedExpression(context)}]"
+                "[${parameters[1].convertToRealizedExpression(context)}]"
     }
 
     override fun evaluateCore(context: EvaluationContext): Pair<ResultMemory?, Any?> {
@@ -126,7 +126,7 @@ class Index : Container() {
             return Pair(value, false)
         }
 
-        if ((context.state as ExecutionContext).expressionValues[left.name] == null) {
+        if ((context.state as ExecutionContext).expressionValues.get(left.name, false) == null) {
             return Pair(convertToExpression(), false)
         }
 
@@ -161,8 +161,11 @@ class Index : Container() {
                     }
                     // String
                     else if (index.hasStringIndex) {
-                        val (nestedObjectValue, res) = nestedCollection.tryGetValue(index.stringIndex!!)
-                        if (res) {
+                        val nestedObjectValue = nestedCollection.get(
+                            key = index.stringIndex!!,
+                            notNull = context.options.exceptionInsteadOfNull
+                        )
+                        if (nestedObjectValue != null) {
                             result.add(nestedObjectValue)
                             counter.add(Int.SIZE_BYTES)
                         }
@@ -209,8 +212,11 @@ class Index : Container() {
         }
         // String
         else {
-            val (result, ok) = obj.tryGetValue(index.stringIndex ?: return Pair(null, null))
-            if (index.hasStringIndex && ok) {
+            val result = obj.get(
+                key = index.stringIndex ?: return Pair(null, null),
+                notNull = context.options.exceptionInsteadOfNull
+            )
+            if (index.hasStringIndex && result != null) {
                 return Pair(null, result)
             }
         }
@@ -240,6 +246,9 @@ class Index : Container() {
         // Integer
         else if (index.hasIntegerIndex && index.integerIndex < array.count) {
             return Pair(null, array[index.integerIndex])
+        }
+        if (context.options.exceptionInsteadOfNull) {
+            throw ContextNotFoundException.contextNameNotFound(index.integerIndex.toString())
         }
 
         return Pair(null, null)

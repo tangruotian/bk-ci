@@ -40,11 +40,7 @@ class ArrayContextData : PipelineContextData(PipelineContextDataType.ARRAY), IRe
     override val count: Int
         get() = mItems.count()
 
-    fun add(item: PipelineContextData?) {
-        mItems.add(item)
-    }
-
-    override fun get(index: Int): Any? = mItems[index]
+    override operator fun get(index: Int): Any? = mItems[index]
 
     override fun clone(): PipelineContextData {
         val result = ArrayContextData()
@@ -75,5 +71,9 @@ class ArrayContextData : PipelineContextData(PipelineContextDataType.ARRAY), IRe
             }
         }
         return list
+    }
+
+    fun add(item: PipelineContextData?) {
+        mItems.add(item)
     }
 }

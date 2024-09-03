@@ -30,5 +30,8 @@ package com.tencent.devops.common.expression.expression.sdk
 interface IReadOnlyObject {
     val values: Iterable<Any?>
 
-    fun tryGetValue(key: String): Pair<Any?, Boolean>
+    /**
+     * @param notNull 为空时抛出异常
+     */
+    fun get(key: String, notNull: Boolean): Any?
 }

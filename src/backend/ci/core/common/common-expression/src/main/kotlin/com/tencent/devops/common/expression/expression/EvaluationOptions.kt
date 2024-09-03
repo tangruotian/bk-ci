@@ -27,13 +27,11 @@
 
 package com.tencent.devops.common.expression.expression
 
-class EvaluationOptions() {
-
-    constructor(copy: EvaluationOptions?) : this() {
-        if (copy != null) {
-            maxMemory = copy.maxMemory
-        }
-    }
-
+/**
+ * @param exceptionInsteadOfNull 上下文计算时需要不存在的变量抛出异常而不是返回空
+ * @param maxMemory 暂未使用
+ */
+data class EvaluationOptions(
+    val exceptionInsteadOfNull: Boolean,
     var maxMemory: Int = 0
-}
+)

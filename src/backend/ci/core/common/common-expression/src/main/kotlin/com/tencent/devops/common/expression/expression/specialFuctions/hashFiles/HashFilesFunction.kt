@@ -46,22 +46,16 @@ class HashFilesFunction : Function() {
 
     override fun evaluateCore(context: EvaluationContext): Pair<ResultMemory?, Any?> {
         val contextValues = context.state as ExecutionContext
-        var workspaceData = contextValues.expressionValues[ciWorkSpaceKey.split(".")[0]]
+        var workspaceData = contextValues.expressionValues.get(ciWorkSpaceKey.split(".")[0], false)
         workspaceData = if (workspaceData == null) {
-            if (contextValues.expressionValues[workSpaceKey] == null) {
-                throw ContextNotFoundException("$workSpaceKey/$ciWorkSpaceKey")
-            } else {
-                contextValues.expressionValues[workSpaceKey]
-            }
+            contextValues.expressionValues.get(workSpaceKey, false)
+                ?: throw ContextNotFoundException("$workSpaceKey/$ciWorkSpaceKey")
         } else {
-            if (workspaceData !is DictionaryContextData || workspaceData[ciWorkSpaceKey.split(".")[1]] == null) {
-                if (contextValues.expressionValues[workSpaceKey] == null) {
-                    throw ContextNotFoundException("$workSpaceKey/$ciWorkSpaceKey")
-                } else {
-                    contextValues.expressionValues[workSpaceKey]
-                }
+            if (workspaceData !is DictionaryContextData || !workspaceData.containsKey(ciWorkSpaceKey.split(".")[1])) {
+                contextValues.expressionValues.get(workSpaceKey, false)
+                    ?: throw ContextNotFoundException("$workSpaceKey/$ciWorkSpaceKey")
             } else {
-                workspaceData[ciWorkSpaceKey.split(".")[1]]
+                workspaceData.get(ciWorkSpaceKey.split(".")[1], false)
             }
         }
         val workspace = (workspaceData as StringContextData).value

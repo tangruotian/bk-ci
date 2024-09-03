@@ -72,7 +72,7 @@ abstract class ExpressionNode : IExpressionNode {
     override fun evaluate(
         trace: ITraceWriter?,
         state: Any?,
-        options: EvaluationOptions?,
+        options: EvaluationOptions,
         expressionOutput: ExpressionOutput?
     ): EvaluationResult {
         if (container != null) {
@@ -140,7 +140,7 @@ abstract class ExpressionNode : IExpressionNode {
     override fun subNameValueEvaluate(
         trace: ITraceWriter?,
         state: Any?,
-        options: EvaluationOptions?,
+        options: EvaluationOptions,
         subInfo: SubNameValueEvaluateInfo,
         expressionOutput: ExpressionOutput?
     ): SubNameValueEvaluateResult {

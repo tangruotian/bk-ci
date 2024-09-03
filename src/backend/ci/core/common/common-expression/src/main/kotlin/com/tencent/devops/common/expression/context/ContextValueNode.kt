@@ -34,7 +34,10 @@ import com.tencent.devops.common.expression.expression.sdk.ResultMemory
 
 class ContextValueNode : NamedValue() {
     override fun evaluateCore(context: EvaluationContext): Pair<ResultMemory?, Any?> {
-        return Pair(null, (context.state as ExecutionContext).expressionValues[name])
+        return Pair(
+            null,
+            (context.state as ExecutionContext).expressionValues.get(name, context.options.exceptionInsteadOfNull)
+        )
     }
 
     override fun createNode(): NamedValue {
@@ -43,8 +46,8 @@ class ContextValueNode : NamedValue() {
 
     override fun subNameValueEvaluateCore(context: EvaluationContext): Pair<Any?, Boolean> {
         val values = (context.state as ExecutionContext).expressionValues
-        return if (values[name] != null) {
-            Pair(values[name], true)
+        return if (values.containsKey(name)) {
+            Pair(values.get(name, false), true)
         } else {
             Pair(name, false)
         }
