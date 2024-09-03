@@ -111,7 +111,7 @@ class DispatchVMStartupTaskAtom @Autowired constructor(
     ): AtomResponse {
         var atomResponse: AtomResponse
         // 解决BUG:93319235,env变量提前替换
-        val context = pipelineContextService.fillAllBuildContext(runVariables)
+        val context = pipelineContextService.getAllBuildContext(runVariables)
         val buildEnv = param.customEnv?.map { mit ->
             NameAndValue(mit.key, EnvUtils.parseEnv(mit.value, context))
         }

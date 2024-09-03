@@ -48,6 +48,7 @@ import com.tencent.devops.common.api.exception.TaskExecuteException
 import com.tencent.devops.common.api.factory.BkDiskLruFileCacheFactory
 import com.tencent.devops.common.api.pojo.ErrorCode
 import com.tencent.devops.common.api.pojo.ErrorType
+import com.tencent.devops.common.api.pojo.PipelineAsCodeSettings
 import com.tencent.devops.common.api.util.EnvUtils
 import com.tencent.devops.common.api.util.JsonUtil
 import com.tencent.devops.common.api.util.MessageUtil
@@ -197,14 +198,6 @@ open class MarketAtomTask : ITask() {
                 acrossProjectId = acrossInfo?.targetProjectId
             )
         }.toMap()
-        val contextVariables = buildVariables.contextVariables.plus(
-            buildTask.buildContextVariable ?: emptyMap()
-        )
-        logger.info(
-            "Start to execute the script task," +
-                    "variables:${JsonUtil.toJson(variables)}, " +
-                    "contextVariables:${JsonUtil.toJson(contextVariables)}"
-        )
 
         // 解析输入输出字段模板
         val props = JsonUtil.toMutableMap(atomData.props!!)
@@ -233,18 +226,11 @@ open class MarketAtomTask : ITask() {
         )
 
         val dialect = PipelineDialectType.getPipelineDialect(asCodeSettings)
-        val contextMap = if (dialect.supportDirectAccessVar()) {
-            variables
-        } else {
-            contextVariables
-        }.plus(
-            getContainerVariables(buildTask, buildVariables, workspacePath)
-        )
         // 解析并打印插件执行传入的所有参数
         val inputParams = map["input"]?.let { input ->
             parseInputParams(
                 inputMap = input as Map<String, Any>,
-                variables = contextMap,
+                variables = variables.plus(getContainerVariables(buildTask, buildVariables, workspacePath)),
                 acrossInfo = acrossInfo,
                 dialect = dialect
             )

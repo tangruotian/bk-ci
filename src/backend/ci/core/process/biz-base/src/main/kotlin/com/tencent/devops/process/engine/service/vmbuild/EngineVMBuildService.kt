@@ -44,10 +44,8 @@ import com.tencent.devops.common.event.enums.ActionType
 import com.tencent.devops.common.event.pojo.pipeline.PipelineBuildStatusBroadCastEvent
 import com.tencent.devops.common.log.utils.BuildLogPrinter
 import com.tencent.devops.common.pipeline.EnvReplacementParser
-import com.tencent.devops.common.pipeline.Model
 import com.tencent.devops.common.pipeline.NameAndValue
 import com.tencent.devops.common.pipeline.container.NormalContainer
-import com.tencent.devops.common.pipeline.container.Stage
 import com.tencent.devops.common.pipeline.container.VMBuildContainer
 import com.tencent.devops.common.pipeline.dialect.PipelineDialectType
 import com.tencent.devops.common.pipeline.enums.BuildFormPropertyType
@@ -72,7 +70,6 @@ import com.tencent.devops.process.engine.control.BuildingHeartBeatUtils
 import com.tencent.devops.process.engine.control.ControlUtils
 import com.tencent.devops.process.engine.control.lock.ContainerIdLock
 import com.tencent.devops.process.engine.pojo.BuildInfo
-import com.tencent.devops.process.engine.pojo.PipelineBuildContainer
 import com.tencent.devops.process.engine.pojo.PipelineBuildTask
 import com.tencent.devops.process.engine.pojo.UpdateTaskInfo
 import com.tencent.devops.process.engine.pojo.builds.CompleteTask
@@ -192,6 +189,7 @@ class EngineVMBuildService @Autowired(required = false) constructor(
         Preconditions.checkNotNull(buildInfo, NotFoundException("Pipeline build ($buildId) is not exist"))
         LOG.info("ENGINE|$buildId|BUILD_VM_START|j($vmSeqId)|vmName($vmName)")
         // var表中获取环境变量，并对老版本变量进行兼容
+        val pipelineId = buildInfo.pipelineId
         val variables = buildVariableService.getAllVariable(projectId, buildInfo.pipelineId, buildId)
         val variablesWithType = buildVariableService.getAllVariableWithType(projectId, buildId).toMutableList()
         val model = containerBuildDetailService.getBuildModel(projectId, buildId)
@@ -225,38 +223,67 @@ class EngineVMBuildService @Autowired(required = false) constructor(
                             I18nUtil.getCodeLanMessage(messageCode = BK_VM_START_ALREADY) + " ${c.startVMStatus}"
                         )
                     )
+                    val containerAppResource = client.get(ServiceContainerAppResource::class)
 
-                    val contextVariables = mutableMapOf<String, String>()
                     // #4518 填充构建机环境变量、构建上下文、获取超时时间
                     val (containerEnv, context, timeoutMills) = when (c) {
                         is VMBuildContainer -> {
-                            c.buildVMBuildContainerContext(
-                                container = container,
-                                variables = variables,
-                                stage = s,
-                                model = model,
-                                buildInfo = buildInfo,
-                                asCodeSettings = asCodeSettings,
-                                variablesWithType = variablesWithType,
-                                contextVariables = contextVariables
-                            )
+                            val envList = mutableListOf<BuildEnv>()
+                            val tm = transMinuteTimeoutToMills(container.controlOption.jobControlOption.timeout)
+                            val contextMap = variables.plus(
+                                pipelineContextService.buildContext(
+                                    projectId = projectId, pipelineId = pipelineId, buildId = buildId,
+                                    stageId = s.id!!, containerId = c.id!!, taskId = null,
+                                    variables = variables, model = model, executeCount = buildInfo.executeCount
+                                )
+                            ).toMutableMap()
+                            fillContainerContext(contextMap, c.customEnv, c.matrixContext, asCodeSettings?.enable)
+                            val asCodeEnabled = asCodeSettings?.enable == true
+                            val contextPair = if (asCodeEnabled) {
+                                EnvReplacementParser.getCustomExecutionContextByMap(contextMap)
+                            } else null
+                            c.buildEnv?.forEach { env ->
+                                containerAppResource.getBuildEnv(
+                                    name = env.key,
+                                    version = EnvReplacementParser.parse(
+                                        value = env.value,
+                                        contextMap = contextMap,
+                                        onlyExpression = asCodeEnabled,
+                                        contextPair = contextPair
+                                    ),
+                                    os = c.baseOS.name.lowercase()
+                                ).data?.let { self -> envList.add(self) }
+                            }
+
+                            // 设置Job环境变量customEnv到variablesWithType和variables中
+                            // TODO 此处应收敛到variablesWithType或variables的其中一个
+                            val customBuildParameters = mutableListOf<BuildParameters>()
+                            c.customEnv?.forEach { nameAndValue ->
+                                val value = EnvReplacementParser.parse(
+                                    value = nameAndValue.value,
+                                    contextMap = contextMap,
+                                    onlyExpression = asCodeEnabled,
+                                    contextPair = contextPair
+                                )
+                                val key = nameAndValue.key ?: return@forEach
+                                contextMap[key] = value
+                                customBuildParameters.add(
+                                    BuildParameters(
+                                        key = key,
+                                        value = value,
+                                        valueType = BuildFormPropertyType.STRING,
+                                        readOnly = true
+                                    )
+                                )
+                            }
+                            variablesWithType.addAll(customBuildParameters)
+                            Triple(envList, contextMap, tm)
                         }
 
                         is NormalContainer -> {
-                            val buildContext = pipelineContextService.getAllBuildContext(variables)
-                            contextVariables.putAll(buildContext)
-
-                            val contextMap = variables.plus(buildContext).toMutableMap()
-                            val containerContext = getContainerContext(
-                                context = contextMap,
-                                customBuildEnv = null,
-                                matrixContext = c.matrixContext,
-                                asCodeEnabled = asCodeSettings?.enable
-                            )
-                            contextMap.putAll(containerContext)
-                            contextVariables.putAll(containerContext)
-
                             val tm = transMinuteTimeoutToMills(container.controlOption.jobControlOption.timeout)
+                            val contextMap = pipelineContextService.getAllBuildContext(variables).toMutableMap()
+                            fillContainerContext(contextMap, null, c.matrixContext, asCodeSettings?.enable)
                             Triple(mutableListOf(), contextMap, tm)
                         }
 
@@ -288,8 +315,7 @@ class EngineVMBuildService @Autowired(required = false) constructor(
                         variablesWithType = variablesWithType,
                         timeoutMills = timeoutMills,
                         containerType = c.getClassType(),
-                        pipelineAsCodeSettings = asCodeSettings,
-                        contextVariables = contextVariables
+                        pipelineAsCodeSettings = asCodeSettings
                     )
                 }
                 vmId++
@@ -299,94 +325,26 @@ class EngineVMBuildService @Autowired(required = false) constructor(
         throw NotFoundException("Fail to find the vm build container: j($vmSeqId) vmName($vmName)")
     }
 
-    private fun VMBuildContainer.buildVMBuildContainerContext(
-        container: PipelineBuildContainer,
-        variables: Map<String, String>,
-        stage: Stage,
-        model: Model?,
-        buildInfo: BuildInfo,
-        asCodeSettings: PipelineAsCodeSettings?,
-        variablesWithType: MutableList<BuildParameters>,
-        contextVariables: MutableMap<String, String>
-    ): Triple<MutableList<BuildEnv>, MutableMap<String, String>, Long> {
-        // 流水线构建上下文
-        val buildContext = pipelineContextService.buildContext(
-            projectId = buildInfo.projectId, pipelineId = buildInfo.pipelineId, buildId = buildInfo.buildId,
-            stageId = stage.id!!, containerId = id!!, taskId = null,
-            variables = variables, model = model, executeCount = buildInfo.executeCount
-        )
-        contextVariables.putAll(buildContext)
-
-        val contextMap = variables.plus(buildContext).toMutableMap()
-        val containerContext = getContainerContext(contextMap, customEnv, matrixContext, asCodeSettings?.enable)
-        contextMap.putAll(containerContext)
-        contextVariables.putAll(containerContext)
-
-        val asCodeEnabled = asCodeSettings?.enable == true
-        val contextPair = if (asCodeEnabled) {
-            EnvReplacementParser.getCustomExecutionContextByMap(contextMap)
-        } else null
-        val containerAppResource = client.get(ServiceContainerAppResource::class)
-        val envList = mutableListOf<BuildEnv>()
-        buildEnv?.forEach { env ->
-            containerAppResource.getBuildEnv(
-                name = env.key,
-                version = EnvReplacementParser.parse(
-                    value = env.value,
-                    contextMap = contextMap,
-                    onlyExpression = asCodeEnabled,
-                    contextPair = contextPair
-                ),
-                os = baseOS.name.lowercase()
-            ).data?.let { self -> envList.add(self) }
-        }
-
-        // 设置Job环境变量customEnv到variablesWithType和variables中
-        // TODO 此处应收敛到variablesWithType或variables的其中一个
-        val customBuildParameters = mutableListOf<BuildParameters>()
-        customEnv?.forEach { nameAndValue ->
-            val value = EnvReplacementParser.parse(
-                value = nameAndValue.value,
-                contextMap = contextMap,
-                onlyExpression = asCodeEnabled,
-                contextPair = contextPair
-            )
-            val key = nameAndValue.key ?: return@forEach
-            contextMap[key] = value
-            customBuildParameters.add(
-                BuildParameters(
-                    key = key,
-                    value = value,
-                    valueType = BuildFormPropertyType.STRING,
-                    readOnly = true
-                )
-            )
-        }
-        variablesWithType.addAll(customBuildParameters)
-
-        val tm = transMinuteTimeoutToMills(container.controlOption.jobControlOption.timeout)
-        return Triple(envList, contextMap, tm)
-    }
-
     /**
      * 对[customBuildEnv]的占位符进行替换，
      * 再追加env.前缀的构建机容器的上下文[context]，
      * 同时追加构[matrixContext]建矩阵上下文
      */
-    private fun getContainerContext(
+    private fun fillContainerContext(
         context: MutableMap<String, String>,
         customBuildEnv: List<NameAndValue>?,
         matrixContext: Map<String, String>?,
         asCodeEnabled: Boolean?
-    ): MutableMap<String, String> {
-        val containerContext = mutableMapOf<String, String>()
-        customBuildEnv?.forEach {
-            containerContext["$ENV_CONTEXT_KEY_PREFIX${it.key}"] =
-                EnvReplacementParser.parse(it.value, context, asCodeEnabled)
+    ) {
+        customBuildEnv?.let {
+            context.putAll(
+                customBuildEnv.map {
+                    "$ENV_CONTEXT_KEY_PREFIX${it.key}" to EnvReplacementParser.parse(it.value, context, asCodeEnabled)
+                }.toMap()
+            )
         }
 
-        if (matrixContext?.isNotEmpty() == true) containerContext.putAll(matrixContext)
-        return containerContext
+        if (matrixContext?.isNotEmpty() == true) context.putAll(matrixContext)
     }
 
     fun setStartUpVMStatus(
@@ -632,7 +590,6 @@ class EngineVMBuildService @Autowired(required = false) constructor(
 
             else -> {
                 val allVariable = buildVariableService.getAllVariable(task.projectId, task.pipelineId, buildId)
-                val buildContextVariables = mutableMapOf<String, String>()
                 // 构造扩展变量
                 val extMap = buildExtService.buildExt(task, allVariable)
                 val buildVariable = mutableMapOf(
@@ -643,7 +600,6 @@ class EngineVMBuildService @Autowired(required = false) constructor(
                 PipelineVarUtil.fillOldVar(buildVariable)
                 buildVariable.putAll(allVariable)
                 buildVariable.putAll(extMap)
-                buildContextVariables.putAll(extMap)
 
                 // 如果状态未改变，则做认领任务动作
                 if (!task.status.isRunning()) {
@@ -680,11 +636,6 @@ class EngineVMBuildService @Autowired(required = false) constructor(
                     )
                 }
                 val dialect = PipelineDialectType.getPipelineDialect(asCodeSettings)
-                val contextMap = if (dialect.supportDirectAccessVar()) {
-                    buildVariable
-                } else {
-                    buildContextVariables
-                }
                 BuildTask(
                     buildId = buildId,
                     vmSeqId = vmSeqId,
@@ -699,7 +650,7 @@ class EngineVMBuildService @Autowired(required = false) constructor(
                         // 支持${}变量引用,变量直接在服务端替换
                         val obj = if (dialect.supportUseSingleCurlyBracesVar()) {
                             ObjectReplaceEnvVarUtil.replaceEnvVar(
-                                it.value, contextMap
+                                it.value, buildVariable
                             )
                         } else {
                             it.value
@@ -710,8 +661,7 @@ class EngineVMBuildService @Autowired(required = false) constructor(
                     }.toMap(),
                     buildVariable = buildVariable,
                     containerType = task.containerType,
-                    signToken = signToken,
-                    buildContextVariable = buildContextVariables
+                    signToken = signToken
                 )
             }
         }
