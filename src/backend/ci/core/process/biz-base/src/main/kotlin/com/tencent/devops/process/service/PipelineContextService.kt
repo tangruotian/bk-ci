@@ -379,6 +379,12 @@ class PipelineContextService @Autowired constructor(
             e.id?.let { contextMap["jobs.$jobId.steps.$stepId.id"] = it }
             contextMap["jobs.$jobId.steps.$stepId.status"] = statusStr
             e.status?.let { contextMap["jobs.$jobId.steps.$stepId.outcome"] = it }
+            fillStepOutputContext(
+                jobPrefix = "jobs.$jobId.",
+                stepPrefix = "steps.$stepId.outputs.",
+                variables = variables,
+                contextMap = contextMap
+            )
             outputArrayMap?.let { self ->
                 fillStepOutputArray(
                     jobPrefix = "jobs.$jobId.",
@@ -416,6 +422,20 @@ class PipelineContextService @Autowired constructor(
                 val outputArray = outputArrayMap[stepKey] ?: mutableListOf()
                 outputArray.add(value)
                 outputArrayMap[stepKey] = outputArray
+            }
+        }
+    }
+
+    fun fillStepOutputContext(
+        jobPrefix: String,
+        stepPrefix: String,
+        variables: Map<String, String>,
+        contextMap: MutableMap<String, String>,
+    ) {
+        val outputPrefix = "$jobPrefix$stepPrefix"
+        variables.forEach { (key, value) ->
+            if (key.startsWith(outputPrefix)) {
+                contextMap[key] = value
             }
         }
     }
