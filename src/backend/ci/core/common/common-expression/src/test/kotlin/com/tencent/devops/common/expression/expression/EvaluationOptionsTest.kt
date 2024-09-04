@@ -11,7 +11,6 @@ import com.tencent.devops.common.expression.expression.sdk.NamedValueInfo
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
-import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
@@ -36,9 +35,9 @@ class EvaluationOptionsTest {
         fun exceptionInsteadOfNull(group: String) {
             val (exp, exArg) = group.split(" => ")
             val options = EvaluationOptions(true)
-            val exception = assertThrows<ContextNotFoundException> {
+            assertThrows<ContextNotFoundException> {
                 ExpressionParser.createTree(exp, null, nameValue, null)!!
-                    .evaluate(TestTraceWriter(), ev, options, null).value
+                    .evaluate(TestTraceWriter(), ev, options, null)
             }
             println(options.contextNotNull.exceptionTraceMsg)
             Assertions.assertEquals(
@@ -48,8 +47,20 @@ class EvaluationOptionsTest {
         }
 
         @DisplayName("不配置exceptionInsteadOfNull")
-        @Test
-        fun noExceptionInsteadOfNull() {
+        @ParameterizedTest
+        @ValueSource(
+            strings = [
+                "string == null",
+                "obj.a.obj_obj1[2] == null",
+                "arr[0].arr_obj_1_n2 == null",
+                "obj.obj_obj1.obj_obj1_n1.a == null"
+            ]
+        )
+        fun noExceptionInsteadOfNull(exp: String) {
+            val options = EvaluationOptions(false)
+            val result = ExpressionParser.createTree(exp, null, nameValue, null)!!
+                .evaluate(TestTraceWriter(), ev, options, null)
+            Assertions.assertTrue(result.equalsTrue)
         }
 
         private val nameValue = mutableListOf<NamedValueInfo>().apply {
