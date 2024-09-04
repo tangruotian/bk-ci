@@ -32,6 +32,7 @@ import com.google.common.cache.CacheLoader
 import com.google.common.cache.LoadingCache
 import com.tencent.devops.common.api.util.Watcher
 import com.tencent.devops.common.event.dispatcher.pipeline.PipelineEventDispatcher
+import com.tencent.devops.common.pipeline.dialect.PipelineDialectType
 import com.tencent.devops.common.pipeline.enums.BuildStatus
 import com.tencent.devops.common.redis.RedisOperation
 import com.tencent.devops.common.service.prometheus.BkTimed
@@ -140,8 +141,8 @@ class StageControl @Autowired constructor(
             containsMatrix = false
         )
         val executeCount = buildVariableService.getBuildExecuteCount(projectId, pipelineId, buildId)
-        val pipelineAsCodeEnabled = pipelineAsCodeService.asCodeEnabled(projectId, pipelineId)
-        val dialect = pipelineAsCodeService.getPipelineDialect(projectId, pipelineId)
+        val asCodeSettings = pipelineAsCodeService.getPipelineAsCodeSettings(projectId, pipelineId)
+        val dialect = PipelineDialectType.getPipelineDialect(asCodeSettings)
         // #10082 过滤Agent复用互斥的endJob信息
         val mutexJobs = containers.filter {
             it.controlOption.agentReuseMutex?.endJob == true &&
@@ -156,6 +157,7 @@ class StageControl @Autowired constructor(
             latestSummary = "init",
             watcher = watcher,
             variables = pipelineContextService.getAllBuildContext(variables), // 传递全量上下文
+            pipelineAsCodeEnabled = asCodeSettings?.enable,
             executeCount = executeCount,
             previousStageStatus = addPreviousStageStatus(stage),
             agentReuseMutexEndJob = mutexJobs,
