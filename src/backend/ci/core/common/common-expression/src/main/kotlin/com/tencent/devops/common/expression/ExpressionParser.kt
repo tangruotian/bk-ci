@@ -27,6 +27,7 @@
 
 package com.tencent.devops.common.expression
 
+import com.tencent.devops.common.expression.ExpressionParser.legalizeExpression
 import com.tencent.devops.common.expression.context.ContextValueNode
 import com.tencent.devops.common.expression.context.DictionaryContextData
 import com.tencent.devops.common.expression.context.PipelineContextData
@@ -76,8 +77,9 @@ object ExpressionParser {
         fetchValue: Boolean
     ): Any? {
         // TODO: EvaluationOptions 需要根据模式设置不同的选项
+        val options = EvaluationOptions(false)
         val result = createTree(expression.legalizeExpression(), null, nameValue, null)!!
-            .evaluate(null, context, EvaluationOptions(false), null)
+            .evaluate(null, context, options, null)
         if (!fetchValue) {
             return result
         }
@@ -93,9 +95,32 @@ object ExpressionParser {
         val nameValue = mutableListOf<NamedValueInfo>()
         fillContextByMap(contextMap, context, nameValue)
         // TODO: EvaluationOptions 需要根据模式设置不同的选项
-        val result = createTree(expression.legalizeExpression(), null, nameValue, null)!!
-            .evaluate(null, context, EvaluationOptions(false), null)
+        val options = EvaluationOptions(true)
+        try {
+            return doEvaluateByMap(
+                expression = expression,
+                context = context,
+                nameValue = nameValue,
+                options = options,
+                fetchValue = fetchValue
+            )
+        } catch (e: Throwable) {
+            if (options.contextNotNull() && e is ContextNotFoundException) {
+                throw ContextNotFoundException("Expression context ${options.contextNotNull.errKey()} not found.")
+            }
+            throw e
+        }
+    }
 
+    private fun doEvaluateByMap(
+        expression: String,
+        context: ExecutionContext,
+        nameValue: MutableList<NamedValueInfo>,
+        options: EvaluationOptions,
+        fetchValue: Boolean
+    ): Any? {
+        val result = createTree(expression.legalizeExpression(), null, nameValue, null)!!
+            .evaluate(null, context, options, null)
         if (!fetchValue) {
             return result
         }

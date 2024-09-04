@@ -31,6 +31,7 @@ import com.tencent.devops.common.expression.ContextNotFoundException
 import com.tencent.devops.common.expression.ExecutionContext
 import com.tencent.devops.common.expression.context.ContextValueNode
 import com.tencent.devops.common.expression.expression.EvaluationResult
+import com.tencent.devops.common.expression.expression.ExpressionConstants
 import com.tencent.devops.common.expression.expression.sdk.CollectionResult
 import com.tencent.devops.common.expression.expression.sdk.Container
 import com.tencent.devops.common.expression.expression.sdk.EvaluationContext
@@ -48,6 +49,8 @@ import kotlin.math.floor
 class Index : Container() {
 
     override val traceFullyRealized = true
+
+    override val formatValue: String = ExpressionConstants.DEREFERENCE.toString()
 
     override fun convertToExpression(): String {
         // 验证我们是否可以简化表达式，我们宁愿返回 github.sha 然后 github['sha'] 所以我们检查这是否是一个简单的案例
@@ -74,7 +77,10 @@ class Index : Container() {
 
     override fun evaluateCore(context: EvaluationContext): Pair<ResultMemory?, Any?> {
         val left = parameters[0].evaluate(context)
-
+        // 如果有多个索引如 a.b.c 因为是递归计算，到 c的时候拿到的左参数一定是 a.b 中的 .，所以追踪左参数只追踪第一个
+        if (parameters[0] !is Index) {
+            context.options.contextNotNull.trace(parameters[0].format())
+        }
         // Not a collection
         val (collection, ok) = left.tryGetCollectionInterface()
         if (!ok) {
@@ -164,8 +170,8 @@ class Index : Container() {
                     else if (index.hasStringIndex) {
                         val key = index.stringIndex!!
                         val nestedObjectValueRes = nestedCollection.getRes(key)
-                        if (context.options.exceptionInsteadOfNull) {
-                            nestedObjectValueRes.throwIfNoKey(key)
+                        if (context.options.contextNotNull()) {
+                            nestedObjectValueRes.throwIfNoKey()
                         }
                         if (!nestedObjectValueRes.noKey()) {
                             result.add(nestedObjectValueRes.value)
@@ -215,12 +221,12 @@ class Index : Container() {
         // String
         else {
             val key = index.stringIndex
-            if (key == null && context.options.exceptionInsteadOfNull) {
-                throw ContextNotFoundException.trace(index.mResult.convertToString())
+            if (key == null && context.options.contextNotNull()) {
+                throw ContextNotFoundException()
             }
             val result = obj.getRes(key ?: return Pair(null, null))
-            if (context.options.exceptionInsteadOfNull) {
-                result.throwIfNoKey(key)
+            if (context.options.contextNotNull()) {
+                result.throwIfNoKey()
             }
             if (index.hasStringIndex && !result.noKey()) {
                 return Pair(null, result.value)
@@ -253,8 +259,8 @@ class Index : Container() {
         else if (index.hasIntegerIndex && index.integerIndex < array.count) {
             return Pair(null, array[index.integerIndex])
         }
-        if (context.options.exceptionInsteadOfNull) {
-            throw ContextNotFoundException.trace(index.integerIndex.toString())
+        if (context.options.contextNotNull()) {
+            throw ContextNotFoundException()
         }
 
         return Pair(null, null)
@@ -294,6 +300,9 @@ class Index : Container() {
 
         init {
             mResult = parameter.evaluate(context)
+
+            // 追踪右参数
+            context.options.contextNotNull.trace(parameter.format())
 
             mIntegerIndex = lazy {
                 var doubleIndex = mResult.convertToNumber()

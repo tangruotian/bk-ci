@@ -27,6 +27,7 @@
 
 package com.tencent.devops.common.expression.context
 
+import com.tencent.devops.common.expression.ContextNotFoundException
 import com.tencent.devops.common.expression.ExecutionContext
 import com.tencent.devops.common.expression.expression.sdk.EvaluationContext
 import com.tencent.devops.common.expression.expression.sdk.NamedValue
@@ -35,8 +36,9 @@ import com.tencent.devops.common.expression.expression.sdk.ResultMemory
 class ContextValueNode : NamedValue() {
     override fun evaluateCore(context: EvaluationContext): Pair<ResultMemory?, Any?> {
         val value = (context.state as ExecutionContext).expressionValues.getRes(name)
-        if (context.options.exceptionInsteadOfNull) {
-            value.throwIfNoKey(name)
+        if (context.options.contextNotNull() && value.noKey()) {
+            context.options.contextNotNull.trace(name)
+            throw ContextNotFoundException()
         }
         return Pair(null, value.value)
     }

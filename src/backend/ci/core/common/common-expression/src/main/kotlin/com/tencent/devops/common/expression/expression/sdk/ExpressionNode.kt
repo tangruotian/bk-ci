@@ -69,6 +69,10 @@ abstract class ExpressionNode : IExpressionNode {
 
     protected abstract val traceFullyRealized: Boolean
 
+    // 用来展示打印这个节点
+    protected open val formatValue: String? = null
+    open fun format() = formatValue ?: name
+
     override fun evaluate(
         trace: ITraceWriter?,
         state: Any?,

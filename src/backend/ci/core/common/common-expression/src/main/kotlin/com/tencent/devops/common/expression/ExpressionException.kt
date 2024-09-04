@@ -82,16 +82,6 @@ class FunctionFormatException(override val message: String?) : ExpressionExcepti
     }
 }
 
-class ContextNotFoundException(override var message: String?) : ExpressionException() {
-    private val traceName: MutableList<String> = mutableListOf()
-    fun addTrace(name: String) {
-        traceName.add(name)
-        message = "Expression context ${traceName.apply { reverse() }.joinToString(".")} not found."
-    }
-
-    companion object {
-        fun trace(name: String) = ContextNotFoundException(null).apply { addTrace(name) }
-    }
-}
+class ContextNotFoundException(override var message: String? = null) : ExpressionException()
 
 class ContextJsonFormatException(override val message: String?) : ExpressionException()

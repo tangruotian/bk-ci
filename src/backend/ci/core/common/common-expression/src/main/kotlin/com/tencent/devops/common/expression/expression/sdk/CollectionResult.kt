@@ -22,9 +22,9 @@ open class CollectionResult(
 
     fun noKey() = type == CollectionResultType.NO_KEY
 
-    fun throwIfNoKey(key: String) {
+    fun throwIfNoKey() {
         if (noKey()) {
-            throw ContextNotFoundException.trace(key)
+            throw ContextNotFoundException()
         }
     }
 

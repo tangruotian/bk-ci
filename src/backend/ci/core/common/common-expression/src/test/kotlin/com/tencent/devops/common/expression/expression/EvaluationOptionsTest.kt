@@ -6,6 +6,7 @@ import com.tencent.devops.common.expression.ExpressionParser
 import com.tencent.devops.common.expression.context.ArrayContextData
 import com.tencent.devops.common.expression.context.ContextValueNode
 import com.tencent.devops.common.expression.context.DictionaryContextData
+import com.tencent.devops.common.expression.context.StringContextData
 import com.tencent.devops.common.expression.expression.sdk.NamedValueInfo
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.DisplayName
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
+import org.slf4j.LoggerFactory
 
 @Suppress("ComplexMethod", "LongMethod", "MaxLineLength")
 @DisplayName("测试EvaluationOptions配置的不同选项")
@@ -26,17 +28,23 @@ class EvaluationOptionsTest {
         @ValueSource(
             strings = [
                 "string => string",
-                "obj.a => a",
-                "array[1] => 1"
+                "obj.a.obj_obj1[2] == 1 => obj.a",
+                "arr[0].arr_obj_1_n2 => arr.0.arr_obj_1_n2",
+                "obj.obj_obj1.obj_obj1_n1.a => obj.obj_obj1.obj_obj1_n1.a"
             ]
         )
         fun exceptionInsteadOfNull(group: String) {
             val (exp, exArg) = group.split(" => ")
+            val options = EvaluationOptions(true)
             val exception = assertThrows<ContextNotFoundException> {
                 ExpressionParser.createTree(exp, null, nameValue, null)!!
-                    .evaluate(null, ev, EvaluationOptions(true), null).value
+                    .evaluate(TestTraceWriter(), ev, options, null).value
             }
-            Assertions.assertEquals(ContextNotFoundException.trace(exArg).message, exception.message)
+            println(options.contextNotNull.exceptionTraceMsg)
+            Assertions.assertEquals(
+                ContextNotFoundException(exArg).message,
+                options.contextNotNull.exceptionTraceMsg?.joinToString(".")
+            )
         }
 
         @DisplayName("不配置exceptionInsteadOfNull")
@@ -47,11 +55,37 @@ class EvaluationOptionsTest {
         private val nameValue = mutableListOf<NamedValueInfo>().apply {
             add(NamedValueInfo("string", ContextValueNode()))
             add(NamedValueInfo("obj", ContextValueNode()))
-            add(NamedValueInfo("array", ContextValueNode()))
+            add(NamedValueInfo("arr", ContextValueNode()))
         }
         private val ev = ExecutionContext(DictionaryContextData().apply {
-            add("obj", DictionaryContextData())
-            add("array", ArrayContextData())
+            add("obj", DictionaryContextData().apply {
+                add("obj_arr1", ArrayContextData().apply {
+                    add(null)
+                })
+                add("obj_obj1", DictionaryContextData().apply {
+                    add("obj_obj1_n1", DictionaryContextData().apply {
+                    })
+                })
+            })
+            add("arr", ArrayContextData().apply {
+                add(DictionaryContextData().apply {
+                    add("arr_obj_1_n1", StringContextData("arr_obj_1_n1_v"))
+                })
+            })
         })
+    }
+}
+
+class TestTraceWriter : ITraceWriter {
+    override fun info(message: String?) {
+        logger.info(message ?: return)
+    }
+
+    override fun verbose(message: String?) {
+        logger.debug(message ?: return)
+    }
+
+    companion object {
+        private val logger = LoggerFactory.getLogger(TestTraceWriter::class.java)
     }
 }
