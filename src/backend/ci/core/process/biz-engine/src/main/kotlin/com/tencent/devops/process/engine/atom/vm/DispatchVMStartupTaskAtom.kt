@@ -43,6 +43,7 @@ import com.tencent.devops.common.pipeline.EnvReplacementParser
 import com.tencent.devops.common.pipeline.NameAndValue
 import com.tencent.devops.common.pipeline.container.Container
 import com.tencent.devops.common.pipeline.container.VMBuildContainer
+import com.tencent.devops.common.pipeline.dialect.PipelineDialectType
 import com.tencent.devops.common.pipeline.enums.BuildStatus
 import com.tencent.devops.common.pipeline.type.agent.ThirdPartyAgentEnvDispatchType
 import com.tencent.devops.common.pipeline.type.agent.ThirdPartyAgentIDDispatchType
@@ -111,7 +112,7 @@ class DispatchVMStartupTaskAtom @Autowired constructor(
     ): AtomResponse {
         var atomResponse: AtomResponse
         // 解决BUG:93319235,env变量提前替换
-        val context = pipelineContextService.fillAllBuildContext(runVariables)
+        val context = pipelineContextService.getAllBuildContext(runVariables)
         val buildEnv = param.customEnv?.map { mit ->
             NameAndValue(mit.key, EnvUtils.parseEnv(mit.value, context))
         }
@@ -295,11 +296,9 @@ class DispatchVMStartupTaskAtom @Autowired constructor(
                 val asCodeSettings = pipelineAsCodeService.getPipelineAsCodeSettings(
                     projectId = task.projectId, pipelineId = task.pipelineId
                 )
-                val asCodeEnabled = asCodeSettings?.enable == true
-                val contextPair = if (asCodeEnabled) {
-                    EnvReplacementParser.getCustomExecutionContextByMap(variables)
-                } else null
-                Pair(asCodeEnabled, contextPair)
+                val dialect = PipelineDialectType.getPipelineDialect(asCodeSettings)
+                val contextPair = EnvReplacementParser.getCustomExecutionContextByMap(variables)
+                Pair(dialect, contextPair)
             }
             buildEnv.forEach { env ->
                 if (!env.value.startsWith("$")) {
@@ -308,7 +307,7 @@ class DispatchVMStartupTaskAtom @Autowired constructor(
                 val version = EnvReplacementParser.parse(
                     value = env.value,
                     contextMap = variables,
-                    onlyExpression = asCode.first,
+                    dialect = asCode.first,
                     contextPair = asCode.second
                 )
                 val res = client.get(ServiceContainerAppResource::class).getBuildEnv(

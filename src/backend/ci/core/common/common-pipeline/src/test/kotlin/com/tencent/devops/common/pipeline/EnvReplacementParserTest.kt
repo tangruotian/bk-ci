@@ -1,5 +1,7 @@
 package com.tencent.devops.common.pipeline
 
+import com.tencent.devops.common.pipeline.dialect.ClassicPipelineDialect
+import com.tencent.devops.common.pipeline.dialect.ConstrainedPipelineDialect
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 
@@ -496,6 +498,8 @@ let branch = master
 let branch1 = 
 let branchs = branch.split("/")"""
         Assertions.assertEquals(result, EnvReplacementParser.parse(command1, data, true))
+        Assertions.assertEquals(result, EnvReplacementParser.parse(command1, data, ClassicPipelineDialect()))
+        Assertions.assertEquals(result, EnvReplacementParser.parse(command1, data, ConstrainedPipelineDialect()))
     }
 
     @Test
@@ -546,6 +550,8 @@ echo true"""
             "ci.branch" to "master"
         )
         Assertions.assertEquals(result, EnvReplacementParser.parse(command1, data, true))
+        Assertions.assertEquals(result, EnvReplacementParser.parse(command1, data, ClassicPipelineDialect()))
+        Assertions.assertEquals(result, EnvReplacementParser.parse(command1, data, ConstrainedPipelineDialect()))
     }
 
     private fun parseAndEquals(

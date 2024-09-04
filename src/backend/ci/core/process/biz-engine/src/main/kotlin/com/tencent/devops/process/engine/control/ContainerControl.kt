@@ -177,7 +177,7 @@ class ContainerControl @Autowired constructor(
             stageId = stageId,
             onlyMatrixGroup = true
         )
-        val pipelineAsCodeEnabled = pipelineAsCodeService.asCodeEnabled(projectId, pipelineId)
+        val dialect = pipelineAsCodeService.getPipelineDialect(projectId, pipelineId)
 
         val context = ContainerContext(
             buildStatus = this.status, // 初始状态为容器状态，中间流转会切换状态，并最终赋值给该容器状态
@@ -188,8 +188,8 @@ class ContainerControl @Autowired constructor(
             watcher = watcher,
             containerTasks = containerTasks,
             variables = variables,
-            pipelineAsCodeEnabled = pipelineAsCodeEnabled,
-            executeCount = executeCount
+            executeCount = executeCount,
+            dialect = dialect
         )
 
         if (status.isReadyToRun()) {

@@ -48,7 +48,6 @@ import com.tencent.devops.common.api.exception.TaskExecuteException
 import com.tencent.devops.common.api.factory.BkDiskLruFileCacheFactory
 import com.tencent.devops.common.api.pojo.ErrorCode
 import com.tencent.devops.common.api.pojo.ErrorType
-import com.tencent.devops.common.api.util.EnvUtils
 import com.tencent.devops.common.api.util.JsonUtil
 import com.tencent.devops.common.api.util.MessageUtil
 import com.tencent.devops.common.api.util.ShaUtils
@@ -197,14 +196,6 @@ open class MarketAtomTask : ITask() {
                 acrossProjectId = acrossInfo?.targetProjectId
             )
         }.toMap()
-        val contextVariables = buildVariables.contextVariables.plus(
-            buildTask.buildContextVariable ?: emptyMap()
-        )
-        logger.info(
-            "Start to execute the script task," +
-                    "variables:${JsonUtil.toJson(variables)}, " +
-                    "contextVariables:${JsonUtil.toJson(contextVariables)}"
-        )
 
         // 解析输入输出字段模板
         val props = JsonUtil.toMutableMap(atomData.props!!)
@@ -233,18 +224,11 @@ open class MarketAtomTask : ITask() {
         )
 
         val dialect = PipelineDialectType.getPipelineDialect(asCodeSettings)
-        val contextMap = if (dialect.supportDirectAccessVar()) {
-            variables
-        } else {
-            contextVariables
-        }.plus(
-            getContainerVariables(buildTask, buildVariables, workspacePath)
-        )
         // 解析并打印插件执行传入的所有参数
         val inputParams = map["input"]?.let { input ->
             parseInputParams(
                 inputMap = input as Map<String, Any>,
-                variables = contextMap,
+                variables = variables.plus(getContainerVariables(buildTask, buildVariables, workspacePath)),
                 acrossInfo = acrossInfo,
                 dialect = dialect
             )
@@ -513,25 +497,14 @@ open class MarketAtomTask : ITask() {
                 )
             )
             inputMap.forEach { (name, value) ->
-                var newValue = JsonUtil.toJson(value)
-                if (dialect.supportUseSingleCurlyBracesVar()) {
-                    newValue = EnvUtils.parseEnv(
-                        command = newValue,
-                        data = variables
-                    )
-                }
-                if (customReplacement != null && EnvReplacementParser.containsExpressions(newValue)) {
-                    newValue = EnvReplacementParser.parse(
-                        value = newValue,
-                        contextMap = variables,
-                        onlyExpression = true,
-                        contextPair = customReplacement,
-                        functions = SpecialFunctions.functions,
-                        output = SpecialFunctions.output
-                    )
-                }
-                newValue = newValue.parseCredentialValue(null, acrossInfo?.targetProjectId)
-                atomParams[name] = newValue
+                atomParams[name] = EnvReplacementParser.parse(
+                    value = JsonUtil.toJson(value),
+                    contextMap = variables,
+                    dialect = dialect,
+                    contextPair = customReplacement,
+                    functions = SpecialFunctions.functions,
+                    output = SpecialFunctions.output
+                ).parseCredentialValue(null, acrossInfo?.targetProjectId)
             }
         } catch (e: Throwable) {
             logger.error("plugin input illegal! ", e)

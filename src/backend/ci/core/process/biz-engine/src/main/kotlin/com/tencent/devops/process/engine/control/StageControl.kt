@@ -141,6 +141,7 @@ class StageControl @Autowired constructor(
         )
         val executeCount = buildVariableService.getBuildExecuteCount(projectId, pipelineId, buildId)
         val pipelineAsCodeEnabled = pipelineAsCodeService.asCodeEnabled(projectId, pipelineId)
+        val dialect = pipelineAsCodeService.getPipelineDialect(projectId, pipelineId)
         // #10082 过滤Agent复用互斥的endJob信息
         val mutexJobs = containers.filter {
             it.controlOption.agentReuseMutex?.endJob == true &&
@@ -154,12 +155,12 @@ class StageControl @Autowired constructor(
             containers = containers,
             latestSummary = "init",
             watcher = watcher,
-            variables = pipelineContextService.fillAllBuildContext(variables), // 传递全量上下文
-            pipelineAsCodeEnabled = pipelineAsCodeEnabled,
+            variables = pipelineContextService.getAllBuildContext(variables), // 传递全量上下文
             executeCount = executeCount,
             previousStageStatus = addPreviousStageStatus(stage),
             agentReuseMutexEndJob = mutexJobs,
-            debug = buildInfo.debug
+            debug = buildInfo.debug,
+            dialect = dialect
         )
         watcher.stop()
 
