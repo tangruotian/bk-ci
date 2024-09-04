@@ -31,6 +31,7 @@ import com.tencent.devops.common.expression.ContextNotFoundException
 import com.tencent.devops.common.expression.ExecutionContext
 import com.tencent.devops.common.expression.context.ContextValueNode
 import com.tencent.devops.common.expression.expression.EvaluationResult
+import com.tencent.devops.common.expression.expression.sdk.CollectionResult
 import com.tencent.devops.common.expression.expression.sdk.Container
 import com.tencent.devops.common.expression.expression.sdk.EvaluationContext
 import com.tencent.devops.common.expression.expression.sdk.ExpressionNode
@@ -126,7 +127,7 @@ class Index : Container() {
             return Pair(value, false)
         }
 
-        if ((context.state as ExecutionContext).expressionValues.get(left.name, false) == null) {
+        if ((context.state as ExecutionContext).expressionValues[left.name] == null) {
             return Pair(convertToExpression(), false)
         }
 
@@ -161,12 +162,13 @@ class Index : Container() {
                     }
                     // String
                     else if (index.hasStringIndex) {
-                        val nestedObjectValue = nestedCollection.get(
-                            key = index.stringIndex!!,
-                            notNull = context.options.exceptionInsteadOfNull
-                        )
-                        if (nestedObjectValue != null) {
-                            result.add(nestedObjectValue)
+                        val key = index.stringIndex!!
+                        val nestedObjectValueRes = nestedCollection.getRes(key)
+                        if (context.options.exceptionInsteadOfNull) {
+                            nestedObjectValueRes.throwIfNoKey(key)
+                        }
+                        if (!nestedObjectValueRes.noKey()) {
+                            result.add(nestedObjectValueRes.value)
                             counter.add(Int.SIZE_BYTES)
                         }
                     }
@@ -212,12 +214,16 @@ class Index : Container() {
         }
         // String
         else {
-            val result = obj.get(
-                key = index.stringIndex ?: return Pair(null, null),
-                notNull = context.options.exceptionInsteadOfNull
-            )
-            if (index.hasStringIndex && result != null) {
-                return Pair(null, result)
+            val key = index.stringIndex
+            if (key == null && context.options.exceptionInsteadOfNull) {
+                throw ContextNotFoundException.trace(index.mResult.convertToString())
+            }
+            val result = obj.getRes(key ?: return Pair(null, null))
+            if (context.options.exceptionInsteadOfNull) {
+                result.throwIfNoKey(key)
+            }
+            if (index.hasStringIndex && !result.noKey()) {
+                return Pair(null, result.value)
             }
         }
 
@@ -248,7 +254,7 @@ class Index : Container() {
             return Pair(null, array[index.integerIndex])
         }
         if (context.options.exceptionInsteadOfNull) {
-            throw ContextNotFoundException.contextNameNotFound(index.integerIndex.toString())
+            throw ContextNotFoundException.trace(index.integerIndex.toString())
         }
 
         return Pair(null, null)
@@ -269,13 +275,20 @@ class Index : Container() {
             return mList[index]
         }
 
+        override fun getRes(index: Int): CollectionResult {
+            if (index >= 0 && index <= mList.lastIndex) {
+                return CollectionResult(mList[index])
+            }
+            return CollectionResult.noKey()
+        }
+
         override fun iterator(): Iterator<Any?> {
             return mList.iterator()
         }
     }
 
     private class IndexHelper(context: EvaluationContext, val parameter: ExpressionNode) {
-        private val mResult: EvaluationResult
+        val mResult: EvaluationResult
         private val mIntegerIndex: Lazy<Int?>
         private val mStringIndex: Lazy<String?>
 

@@ -28,6 +28,7 @@
 package com.tencent.devops.common.expression.context
 
 import com.fasterxml.jackson.databind.JsonNode
+import com.tencent.devops.common.expression.expression.sdk.CollectionPipelineResult
 import com.tencent.devops.common.expression.expression.sdk.IReadOnlyArray
 import com.tencent.devops.common.expression.utils.ExpressionJsonUtil
 
@@ -40,7 +41,14 @@ class ArrayContextData : PipelineContextData(PipelineContextDataType.ARRAY), IRe
     override val count: Int
         get() = mItems.count()
 
-    override operator fun get(index: Int): Any? = mItems[index]
+    override operator fun get(index: Int): PipelineContextData? = mItems[index]
+
+    override fun getRes(index: Int): CollectionPipelineResult {
+        if (index >= 0 && index <= mItems.lastIndex) {
+            return CollectionPipelineResult(mItems[index])
+        }
+        return CollectionPipelineResult.noKey()
+    }
 
     override fun clone(): PipelineContextData {
         val result = ArrayContextData()

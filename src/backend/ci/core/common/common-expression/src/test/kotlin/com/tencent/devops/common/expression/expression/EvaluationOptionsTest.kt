@@ -36,7 +36,7 @@ class EvaluationOptionsTest {
                 ExpressionParser.createTree(exp, null, nameValue, null)!!
                     .evaluate(null, ev, EvaluationOptions(true), null).value
             }
-            Assertions.assertEquals(ContextNotFoundException.contextNameNotFound(exArg).message, exception.message)
+            Assertions.assertEquals(ContextNotFoundException.trace(exArg).message, exception.message)
         }
 
         @DisplayName("不配置exceptionInsteadOfNull")

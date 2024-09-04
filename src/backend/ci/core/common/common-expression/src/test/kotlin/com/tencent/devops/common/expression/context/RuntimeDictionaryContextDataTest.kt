@@ -47,7 +47,7 @@ internal class RuntimeDictionaryContextDataTest {
     fun contextSingleBuildTest() {
         val context = RuntimeDictionaryContextData(RuntimeNamedValueImpl())
         data.forEach { (k, v) ->
-            Assertions.assertEquals(v, context.get(k, false))
+            Assertions.assertEquals(v, context[k])
         }
         Assertions.assertEquals(data.map { it.value }, context.values)
     }

@@ -31,7 +31,13 @@ interface IReadOnlyObject {
     val values: Iterable<Any?>
 
     /**
-     * @param notNull 为空时抛出异常
+     * 使用kotlin原生Map的get方法
+     * 使用时需要注意场景
      */
-    fun get(key: String, notNull: Boolean): Any?
+    operator fun get(key: String): Any?
+
+    /**
+     * 封装get，令返回结果更清晰
+     */
+    fun getRes(key: String): CollectionResult
 }

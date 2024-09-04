@@ -1,7 +1,7 @@
 package com.tencent.devops.common.expression.context
 
 import com.fasterxml.jackson.databind.JsonNode
-import com.tencent.devops.common.expression.ContextNotFoundException
+import com.tencent.devops.common.expression.expression.sdk.CollectionPipelineResult
 import com.tencent.devops.common.expression.expression.sdk.IReadOnlyObject
 import com.tencent.devops.common.expression.utils.ExpressionJsonUtil
 import java.util.TreeMap
@@ -40,17 +40,17 @@ abstract class AbsDictionaryContextData : PipelineContextData(PipelineContextDat
             return mList
         }
 
-    override fun get(key: String, notNull: Boolean): PipelineContextData? {
-        // TODO: 需要区分一下是不存在key还是取出来的value为空要报错
-        val value = if (containsKey(key)) {
-            mList.getOrNull(indexLookup[key]!!)?.value
+    override operator fun get(key: String): PipelineContextData? {
+        val index = indexLookup[key] ?: return null
+        return list[index].value
+    }
+
+    override fun getRes(key: String): CollectionPipelineResult {
+        return if (containsKey(key)) {
+            CollectionPipelineResult(list.getOrNull(indexLookup[key]!!)?.value)
         } else {
-            null
+            CollectionPipelineResult.noKey()
         }
-        if (value == null && notNull) {
-            throw ContextNotFoundException.contextNameNotFound(key)
-        }
-        return value
     }
 
     override fun toJson(): JsonNode {

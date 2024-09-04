@@ -37,6 +37,7 @@ import com.tencent.devops.common.expression.context.DictionaryContextData
 import com.tencent.devops.common.expression.context.PipelineContextData
 import com.tencent.devops.common.expression.context.RuntimeDictionaryContextData
 import com.tencent.devops.common.expression.context.RuntimeNamedValue
+import com.tencent.devops.common.expression.expression.EvaluationOptions
 import com.tencent.devops.common.expression.expression.ExpressionOutput
 import com.tencent.devops.common.expression.expression.IFunctionInfo
 import com.tencent.devops.common.expression.expression.sdk.NamedValueInfo
@@ -194,7 +195,7 @@ object EnvReplacementParser {
                 if (expression.isBlank()) return@nextBlock
                 var result = try {
                     ExpressionParser.createTree(expression, null, nameValues, functions)!!
-                        .evaluate(null, context, null, output).value.let {
+                        .evaluate(null, context, EvaluationOptions(false), output).value.let {
                             if (it is PipelineContextData) it.fetchValue() else it
                         }?.let {
                             JsonUtil.toJson(it, false)

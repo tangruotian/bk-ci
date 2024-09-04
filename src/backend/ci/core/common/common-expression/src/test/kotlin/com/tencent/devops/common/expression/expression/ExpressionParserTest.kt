@@ -501,12 +501,12 @@ class ExpressionParserTest {
         when (index.toInt()) {
             1 -> {
                 Assertions.assertTrue(res is DictionaryContextData)
-                val t1 = (res as DictionaryContextData).get("include", false)
+                val t1 = (res as DictionaryContextData)["include"]
                 Assertions.assertTrue(t1 is ArrayContextData)
                 val t2 = (t1 as ArrayContextData)[1]
                 Assertions.assertTrue(t2 is DictionaryContextData)
                 Assertions.assertEquals(
-                    "Release", ((t2 as DictionaryContextData).get("config", false) as StringContextData).value
+                    "Release", ((t2 as DictionaryContextData)["config"] as StringContextData).value
                 )
             }
 

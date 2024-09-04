@@ -28,7 +28,7 @@
 package com.tencent.devops.common.expression.context
 
 import com.tencent.devops.common.expression.ContextDataRuntimeException
-import com.tencent.devops.common.expression.ContextNotFoundException
+import com.tencent.devops.common.expression.expression.sdk.CollectionPipelineResult
 import java.lang.Exception
 import java.util.TreeMap
 
@@ -47,24 +47,20 @@ class RuntimeDictionaryContextData(private val runtimeNamedValue: RuntimeNamedVa
     override var mIndexLookup: TreeMap<String, Int>? = null
     override var mList: MutableList<DictionaryContextDataPair> = mutableListOf()
 
-    override fun get(key: String, notNull: Boolean): PipelineContextData? {
-        var value = if (mList.isNotEmpty() && indexLookup.containsKey(key)) {
-            mList.getOrNull(indexLookup[key]!!)?.value
-        } else {
-            null
-        }
-        if (value != null) {
-            return value
+    override operator fun get(key: String): PipelineContextData? {
+        return getRes(key).value
+    }
+
+    override fun getRes(key: String): CollectionPipelineResult {
+        if (containsKey(key)) {
+            return CollectionPipelineResult(mList.getOrNull(indexLookup[key]!!)?.value)
         }
 
         // 对象中没有则去请求一次
-        value = requestAndSaveValue(key)
+        // 暂时全部按照无KEY处理，上线后看看情况
+        val value = requestAndSaveValue(key) ?: return CollectionPipelineResult.noKey()
 
-        if (value == null && notNull) {
-            throw ContextNotFoundException.contextNameNotFound(key)
-        }
-
-        return value
+        return CollectionPipelineResult(value)
     }
 
     override fun clone(): PipelineContextData {
