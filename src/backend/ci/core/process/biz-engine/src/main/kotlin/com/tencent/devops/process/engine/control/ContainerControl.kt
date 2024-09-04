@@ -32,6 +32,7 @@ import com.google.common.cache.CacheLoader
 import com.google.common.cache.LoadingCache
 import com.tencent.devops.common.api.util.Watcher
 import com.tencent.devops.common.log.utils.BuildLogPrinter
+import com.tencent.devops.common.pipeline.dialect.PipelineDialectType
 import com.tencent.devops.common.pipeline.enums.BuildStatus
 import com.tencent.devops.common.redis.RedisOperation
 import com.tencent.devops.common.service.prometheus.BkTimed
@@ -177,7 +178,8 @@ class ContainerControl @Autowired constructor(
             stageId = stageId,
             onlyMatrixGroup = true
         )
-        val dialect = pipelineAsCodeService.getPipelineDialect(projectId, pipelineId)
+        val asCodeSettings = pipelineAsCodeService.getPipelineAsCodeSettings(projectId, pipelineId)
+        val dialect = PipelineDialectType.getPipelineDialect(asCodeSettings)
 
         val context = ContainerContext(
             buildStatus = this.status, // 初始状态为容器状态，中间流转会切换状态，并最终赋值给该容器状态
@@ -188,6 +190,7 @@ class ContainerControl @Autowired constructor(
             watcher = watcher,
             containerTasks = containerTasks,
             variables = variables,
+            pipelineAsCodeEnabled = asCodeSettings?.enable,
             executeCount = executeCount,
             dialect = dialect
         )
