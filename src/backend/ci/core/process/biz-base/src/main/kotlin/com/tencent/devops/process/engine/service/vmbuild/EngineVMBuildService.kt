@@ -47,6 +47,7 @@ import com.tencent.devops.common.pipeline.EnvReplacementParser
 import com.tencent.devops.common.pipeline.NameAndValue
 import com.tencent.devops.common.pipeline.container.NormalContainer
 import com.tencent.devops.common.pipeline.container.VMBuildContainer
+import com.tencent.devops.common.pipeline.dialect.IPipelineDialect
 import com.tencent.devops.common.pipeline.dialect.PipelineDialectType
 import com.tencent.devops.common.pipeline.enums.BuildFormPropertyType
 import com.tencent.devops.common.pipeline.enums.BuildStatus
@@ -196,6 +197,7 @@ class EngineVMBuildService @Autowired(required = false) constructor(
         val asCodeSettings = pipelineAsCodeService.getPipelineAsCodeSettings(
             projectId = projectId, pipelineId = buildInfo.pipelineId
         )
+        val dialect = PipelineDialectType.getPipelineDialect(asCodeSettings)
         Preconditions.checkNotNull(model, NotFoundException("Build Model ($buildId) is not exist"))
         var vmId = 1
 
@@ -237,19 +239,14 @@ class EngineVMBuildService @Autowired(required = false) constructor(
                                     variables = variables, model = model, executeCount = buildInfo.executeCount
                                 )
                             ).toMutableMap()
-                            fillContainerContext(contextMap, c.customEnv, c.matrixContext, asCodeSettings?.enable)
-                            val asCodeEnabled = asCodeSettings?.enable == true
-                            val contextPair = if (asCodeEnabled) {
-                                EnvReplacementParser.getCustomExecutionContextByMap(contextMap)
-                            } else null
+                            fillContainerContext(contextMap, c.customEnv, c.matrixContext, dialect)
                             c.buildEnv?.forEach { env ->
                                 containerAppResource.getBuildEnv(
                                     name = env.key,
                                     version = EnvReplacementParser.parse(
                                         value = env.value,
                                         contextMap = contextMap,
-                                        onlyExpression = asCodeEnabled,
-                                        contextPair = contextPair
+                                        dialect = dialect
                                     ),
                                     os = c.baseOS.name.lowercase()
                                 ).data?.let { self -> envList.add(self) }
@@ -262,8 +259,7 @@ class EngineVMBuildService @Autowired(required = false) constructor(
                                 val value = EnvReplacementParser.parse(
                                     value = nameAndValue.value,
                                     contextMap = contextMap,
-                                    onlyExpression = asCodeEnabled,
-                                    contextPair = contextPair
+                                    dialect = dialect
                                 )
                                 val key = nameAndValue.key ?: return@forEach
                                 contextMap[key] = value
@@ -283,7 +279,7 @@ class EngineVMBuildService @Autowired(required = false) constructor(
                         is NormalContainer -> {
                             val tm = transMinuteTimeoutToMills(container.controlOption.jobControlOption.timeout)
                             val contextMap = pipelineContextService.getAllBuildContext(variables).toMutableMap()
-                            fillContainerContext(contextMap, null, c.matrixContext, asCodeSettings?.enable)
+                            fillContainerContext(contextMap, null, c.matrixContext, dialect)
                             Triple(mutableListOf(), contextMap, tm)
                         }
 
@@ -334,12 +330,12 @@ class EngineVMBuildService @Autowired(required = false) constructor(
         context: MutableMap<String, String>,
         customBuildEnv: List<NameAndValue>?,
         matrixContext: Map<String, String>?,
-        asCodeEnabled: Boolean?
+        dialect: IPipelineDialect
     ) {
         customBuildEnv?.let {
             context.putAll(
                 customBuildEnv.map {
-                    "$ENV_CONTEXT_KEY_PREFIX${it.key}" to EnvReplacementParser.parse(it.value, context, asCodeEnabled)
+                    "$ENV_CONTEXT_KEY_PREFIX${it.key}" to EnvReplacementParser.parse(it.value, context, dialect)
                 }.toMap()
             )
         }

@@ -37,6 +37,7 @@ import com.tencent.devops.common.api.util.JsonUtil
 import com.tencent.devops.common.api.util.MessageUtil
 import com.tencent.devops.common.pipeline.EnvReplacementParser
 import com.tencent.devops.common.pipeline.NameAndValue
+import com.tencent.devops.common.pipeline.dialect.PipelineDialectType
 import com.tencent.devops.common.pipeline.enums.BuildFormPropertyType
 import com.tencent.devops.common.pipeline.enums.BuildTaskStatus
 import com.tencent.devops.common.pipeline.pojo.BuildParameters
@@ -437,13 +438,14 @@ object Runner {
             }
             if (customEnv.isNullOrEmpty()) return
             val jobVariables = jobBuildVariables.variables.toMutableMap()
+            val dialect = PipelineDialectType.getPipelineDialect(jobBuildVariables.pipelineAsCodeSettings)
             customEnv.forEach {
                 if (!it.key.isNullOrBlank()) {
                     // 解决BUG:93319235,将Task的env变量key加env.前缀塞入variables，塞入之前需要对value做替换
                     val value = EnvReplacementParser.parse(
                         value = it.value ?: "",
                         contextMap = jobVariables,
-                        onlyExpression = jobBuildVariables.pipelineAsCodeSettings?.enable,
+                        dialect = dialect,
                         functions = SpecialFunctions.functions,
                         output = SpecialFunctions.output
                     )

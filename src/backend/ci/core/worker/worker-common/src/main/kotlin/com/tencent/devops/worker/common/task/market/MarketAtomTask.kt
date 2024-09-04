@@ -48,8 +48,6 @@ import com.tencent.devops.common.api.exception.TaskExecuteException
 import com.tencent.devops.common.api.factory.BkDiskLruFileCacheFactory
 import com.tencent.devops.common.api.pojo.ErrorCode
 import com.tencent.devops.common.api.pojo.ErrorType
-import com.tencent.devops.common.api.pojo.PipelineAsCodeSettings
-import com.tencent.devops.common.api.util.EnvUtils
 import com.tencent.devops.common.api.util.JsonUtil
 import com.tencent.devops.common.api.util.MessageUtil
 import com.tencent.devops.common.api.util.ShaUtils
@@ -499,25 +497,14 @@ open class MarketAtomTask : ITask() {
                 )
             )
             inputMap.forEach { (name, value) ->
-                var newValue = JsonUtil.toJson(value)
-                if (dialect.supportUseSingleCurlyBracesVar()) {
-                    newValue = EnvUtils.parseEnv(
-                        command = newValue,
-                        data = variables
-                    )
-                }
-                if (customReplacement != null && EnvReplacementParser.containsExpressions(newValue)) {
-                    newValue = EnvReplacementParser.parse(
-                        value = newValue,
-                        contextMap = variables,
-                        onlyExpression = true,
-                        contextPair = customReplacement,
-                        functions = SpecialFunctions.functions,
-                        output = SpecialFunctions.output
-                    )
-                }
-                newValue = newValue.parseCredentialValue(null, acrossInfo?.targetProjectId)
-                atomParams[name] = newValue
+                atomParams[name] = EnvReplacementParser.parse(
+                    value = JsonUtil.toJson(value),
+                    contextMap = variables,
+                    dialect = dialect,
+                    contextPair = customReplacement,
+                    functions = SpecialFunctions.functions,
+                    output = SpecialFunctions.output
+                ).parseCredentialValue(null, acrossInfo?.targetProjectId)
             }
         } catch (e: Throwable) {
             logger.error("plugin input illegal! ", e)

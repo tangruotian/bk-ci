@@ -423,7 +423,7 @@ class PipelineContextService @Autowired constructor(
         jobPrefix: String,
         stepPrefix: String,
         variables: Map<String, String>,
-        contextMap: MutableMap<String, String>,
+        contextMap: MutableMap<String, String>
     ) {
         val outputPrefix = "$jobPrefix$stepPrefix"
         variables.forEach { (key, value) ->

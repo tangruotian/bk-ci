@@ -91,6 +91,11 @@ class PipelineAsCodeService @Autowired constructor(
         return PipelineDialectType.valueOf(projectDialect).dialect
     }
 
+    fun getPipelineDialect(projectId: String, pipelineId: String): IPipelineDialect {
+        val asCodeSettings = getPipelineAsCodeSettings(projectId = projectId, pipelineId = pipelineId)
+        return getPipelineDialect(projectId = projectId, asCodeSettings = asCodeSettings)
+    }
+
     /**
      * 获取流水线方言,根据流水线设置
      */

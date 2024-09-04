@@ -40,6 +40,7 @@ import com.tencent.devops.common.expression.context.RuntimeNamedValue
 import com.tencent.devops.common.expression.expression.ExpressionOutput
 import com.tencent.devops.common.expression.expression.IFunctionInfo
 import com.tencent.devops.common.expression.expression.sdk.NamedValueInfo
+import com.tencent.devops.common.pipeline.dialect.IPipelineDialect
 import org.apache.tools.ant.filters.StringInputStream
 import org.slf4j.LoggerFactory
 import java.io.BufferedReader
@@ -97,6 +98,42 @@ object EnvReplacementParser {
             ObjectReplaceEnvVarUtil.replaceEnvVar(value, contextMap).let {
                 JsonUtil.toJson(it, false)
             }
+        }
+    }
+
+    fun parse(
+        value: String?,
+        contextMap: Map<String, String>,
+        dialect: IPipelineDialect,
+        contextPair: Pair<ExecutionContext, List<NamedValueInfo>>? = null,
+        functions: Iterable<IFunctionInfo>? = null,
+        output: ExpressionOutput? = null
+    ): String {
+        if (value.isNullOrBlank()) return ""
+        var newValue = value
+        if (dialect.supportUseSingleCurlyBracesVar()) {
+            newValue = ObjectReplaceEnvVarUtil.replaceEnvVar(newValue, contextMap).let {
+                JsonUtil.toJson(it, false)
+            }
+        }
+        return if (containsExpressions(newValue)) {
+            try {
+                val (context, nameValues) = contextPair
+                    ?: getCustomExecutionContextByMap(contextMap)
+                    ?: return value
+                parseExpression(
+                    value = newValue,
+                    context = context,
+                    nameValues = nameValues,
+                    functions = functions,
+                    output = output
+                )
+            } catch (ignore: Throwable) {
+                logger.warn("[$value]|EnvReplacementParser expression invalid: ", ignore)
+                value
+            }
+        } else {
+            newValue
         }
     }
 
