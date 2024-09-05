@@ -95,7 +95,7 @@ object ExpressionParser {
         val nameValue = mutableListOf<NamedValueInfo>()
         fillContextByMap(contextMap, context, nameValue)
         // TODO: EvaluationOptions 需要根据模式设置不同的选项
-        val options = EvaluationOptions(true)
+        val options = EvaluationOptions(false)
         try {
             return doEvaluateByMap(
                 expression = expression,
@@ -131,8 +131,9 @@ object ExpressionParser {
     /**
      * 将流水线变量转换为表达式上下文类型，存在如下情况
      * 1、a = str, 直接使用 string 类型的上下文保存即可
-     * 2、a.b.c = str, 将 a.b.c 升格为上下文中的嵌套 map 保存 既 a {b: {c: str}}
-     * 3、a.b.c = str 且 a.b = {"c": "str"}, 需要校验 a.b 所保存的 json 与 a.b.c 结构和数据是否相同后再升格
+     * 2、a.b.c = str, 将 a.b.c 转换为上下文中的嵌套 map 保存 既 a {b: {c: str}}
+     * 3、a.b.c = str 且 a.b = {"c": "str"}, 将 a.b 保存为兼容用户的数据类型，在不涉及引擎计算纯输出的情况下使用 a.b 的原数据，
+     * 在涉及引擎计算时，则使用 a.b.c 转换后的 map，同 2 中所述
      */
     fun fillContextByMap(
         contextMap: Map<String, String>,

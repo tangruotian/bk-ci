@@ -75,6 +75,10 @@ class ArrayContextData : PipelineContextData(PipelineContextDataType.ARRAY), IRe
         val list = mutableListOf<Any>()
         if (mItems.isNotEmpty()) {
             mItems.forEach {
+                if (it is DictionaryContextDataWithVal) {
+                    list.add(it.fetchValueNative())
+                    return@forEach
+                }
                 list.add(it?.fetchValue() ?: return@forEach)
             }
         }
