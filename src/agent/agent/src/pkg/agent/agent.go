@@ -36,7 +36,6 @@ import (
 	"github.com/TencentBlueKing/bk-ci/agentcommon/logs"
 
 	"github.com/TencentBlueKing/bk-ci/agent/src/pkg/api"
-	"github.com/TencentBlueKing/bk-ci/agent/src/pkg/collector"
 	"github.com/TencentBlueKing/bk-ci/agent/src/pkg/config"
 	"github.com/TencentBlueKing/bk-ci/agent/src/pkg/cron"
 	exitcode "github.com/TencentBlueKing/bk-ci/agent/src/pkg/exiterror"
@@ -73,8 +72,9 @@ func Run(isDebug bool) {
 		}
 	}
 
-	// 数据采集
-	go collector.Collect()
+	// 龙芯不需要
+	// // 数据采集
+	// go collector.Collect()
 
 	// 定期清理
 	go cron.CleanJob()

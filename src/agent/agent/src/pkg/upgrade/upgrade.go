@@ -76,11 +76,12 @@ func AgentUpgrade(upgradeItem *api.UpgradeItem, hasBuild bool) {
 		}
 	}()
 
+	// 龙芯关掉除了 worker 之外的升级
 	upItems := &upgradeItems{
-		Agent:          upgradeItem.Agent,
+		Agent:          false,
 		Worker:         upgradeItem.Worker,
-		Jdk:            upgradeItem.Jdk,
-		DockerInitFile: upgradeItem.DockerInitFile,
+		Jdk:            false,
+		DockerInitFile: false,
 	}
 
 	if upItems.NoChange() {

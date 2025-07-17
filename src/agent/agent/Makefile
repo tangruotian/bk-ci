@@ -3,7 +3,7 @@ CMDDIR := $(CURDIR)/src/cmd
 BuildTime := $(shell date '+%Y-%m-%d.%H:%M:%S%Z')
 GitCommit := $(shell git rev-parse HEAD)
 # 出包时通过变量写入为具体的版本号，需要符合如下写法
-AGENT_VERSION=v0.0.0-beta.0
+AGENT_VERSION=v4.0.0-beta.95-loong64
 BUILD_FLAGS := -ldflags="-w -s -X github.com/TencentBlueKing/bk-ci/agent/src/pkg/config.BuildTime=$(BuildTime) \
 -X github.com/TencentBlueKing/bk-ci/agent/src/pkg/config.GitCommit=$(GitCommit) -X github.com/TencentBlueKing/bk-ci/agent/src/pkg/config.AgentVersion=$(AGENT_VERSION)"
 
@@ -98,6 +98,14 @@ build_windows: test clean i18nfilegen
 	GO111MODULE=on CGO_ENABLED=0 GOOS=windows GOARCH=386 go build -tags=${BUILD_OUT_TAG} ${BUILD_FLAGS} -o $(BINDIR)/devopsAgent.exe $(CMDDIR)/agent/main.go
 	GO111MODULE=on CGO_ENABLED=0 GOOS=windows GOARCH=386 go build -tags=${BUILD_OUT_TAG} ${BUILD_FLAGS} -o $(BINDIR)/upgrader.exe $(CMDDIR)/upgrader/main.go
 	GO111MODULE=on CGO_ENABLED=0 GOOS=windows GOARCH=386 go build -tags=${BUILD_OUT_TAG} ${BUILD_FLAGS} -o $(BINDIR)/installer.exe $(CMDDIR)/installer/main.go
+	ls -la $(BINDIR)
+
+build_loong64: test clean i18nfilegen
+	mkdir -p $(BINDIR)
+	GO111MODULE=on CGO_ENABLED=0 GOOS=linux GOARCH=loong64 go build -tags=${BUILD_OUT_TAG} ${BUILD_FLAGS} -o $(BINDIR)/devopsDaemon_loong64 $(CMDDIR)/daemon/main.go
+	GO111MODULE=on CGO_ENABLED=0 GOOS=linux GOARCH=loong64 go build -tags=${BUILD_OUT_TAG} ${BUILD_FLAGS} -o $(BINDIR)/devopsAgent_loong64 $(CMDDIR)/agent/main.go
+	GO111MODULE=on CGO_ENABLED=0 GOOS=linux GOARCH=loong64 go build -tags=${BUILD_OUT_TAG} ${BUILD_FLAGS} -o $(BINDIR)/upgrader_loong64 $(CMDDIR)/upgrader/main.go
+	GO111MODULE=on CGO_ENABLED=0 GOOS=linux GOARCH=loong64 go build -tags=${BUILD_OUT_TAG} ${BUILD_FLAGS} -o $(BINDIR)/installer_loong64 $(CMDDIR)/installer/main.go
 	ls -la $(BINDIR)
 
 clean:
