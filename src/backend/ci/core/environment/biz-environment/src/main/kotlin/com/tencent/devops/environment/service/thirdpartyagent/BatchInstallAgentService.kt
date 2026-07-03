@@ -1,18 +1,23 @@
 package com.tencent.devops.environment.service.thirdpartyagent
 
+import com.tencent.devops.common.api.check.Preconditions
 import com.tencent.devops.common.api.exception.ErrorCodeException
 import com.tencent.devops.common.api.exception.OperationException
+import com.tencent.devops.common.api.exception.PermissionForbiddenException
 import com.tencent.devops.common.api.pojo.OS
 import com.tencent.devops.common.api.util.AESUtil
 import com.tencent.devops.common.api.util.ApiUtil
 import com.tencent.devops.common.api.util.HashUtil
 import com.tencent.devops.common.api.util.SecurityUtil
+import com.tencent.devops.common.auth.api.AuthPermission
 import com.tencent.devops.common.redis.concurrent.SimpleRateLimiter
+import com.tencent.devops.common.web.utils.I18nUtil
 import com.tencent.devops.environment.constant.EnvironmentMessageCode
 import com.tencent.devops.environment.dao.thirdpartyagent.AgentBatchInstallTokenDao
 import com.tencent.devops.environment.dao.thirdpartyagent.ThirdPartyAgentDao
 import com.tencent.devops.environment.model.AgentProps
 import com.tencent.devops.environment.model.AgentPropsSource
+import com.tencent.devops.environment.permission.EnvironmentPermissionService
 import com.tencent.devops.environment.pojo.enums.AgentType
 import com.tencent.devops.environment.pojo.thirdpartyagent.TPAInstallType
 import com.tencent.devops.environment.service.AgentUrlService
@@ -39,7 +44,8 @@ class BatchInstallAgentService @Autowired constructor(
     private val slaveGatewayService: SlaveGatewayService,
     private val downloadAgentInstallService: DownloadAgentInstallService,
     private val simpleRateLimiter: SimpleRateLimiter,
-    private val createEnvService: CreateEnvService
+    private val createEnvService: CreateEnvService,
+    private val environmentPermissionService: EnvironmentPermissionService
 ) {
     @Value("\${environment.batch-install.aes-key}")
     private val batchInstallAesKey = ""
@@ -55,6 +61,15 @@ class BatchInstallAgentService @Autowired constructor(
         reInstallId: String?,
         agentType: AgentType?
     ): String {
+        Preconditions.checkTrue(
+            condition = environmentPermissionService.checkNodePermission(userId, projectId, AuthPermission.CREATE),
+            exception = PermissionForbiddenException(
+                message = I18nUtil.getCodeLanMessage(
+                    EnvironmentMessageCode.ERROR_NODE_NO_CREATE_PERMISSSION,
+                    language = I18nUtil.getLanguage(userId)
+                )
+            )
+        )
         val now = LocalDateTime.now()
         val gateway = slaveGatewayService.getGateway(zoneName)
         // 先确定下是否已经生成过了，以及有没有过期

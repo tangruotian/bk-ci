@@ -34,6 +34,7 @@ import com.tencent.bk.audit.annotations.ActionAuditRecord
 import com.tencent.bk.audit.annotations.AuditAttribute
 import com.tencent.bk.audit.annotations.AuditInstanceRecord
 import com.tencent.bk.audit.context.ActionAuditContext
+import com.tencent.devops.common.api.check.Preconditions
 import com.tencent.devops.common.api.constant.coerceAtMaxLength
 import com.tencent.devops.common.api.enums.AgentAction
 import com.tencent.devops.common.api.enums.AgentStatus
@@ -671,6 +672,15 @@ class ThirdPartyAgentMgrService @Autowired(required = false) constructor(
         zoneName: String?,
         agentType: AgentType?
     ): ThirdPartyAgentLink {
+        Preconditions.checkTrue(
+            condition = environmentPermissionService.checkNodePermission(userId, projectId, AuthPermission.CREATE),
+            exception = PermissionForbiddenException(
+                message = I18nUtil.getCodeLanMessage(
+                    EnvironmentMessageCode.ERROR_NODE_NO_CREATE_PERMISSSION,
+                    language = I18nUtil.getLanguage(userId)
+                )
+            )
+        )
         val gateway = slaveGatewayService.getGateway(zoneName)
         val fileGateway = slaveGatewayService.getFileGateway(zoneName)
         logger.info("Generate agent($os) info of project($projectId) with gateway $gateway by user($userId)")
@@ -729,6 +739,15 @@ class ThirdPartyAgentMgrService @Autowired(required = false) constructor(
         projectId: String,
         nodeId: String
     ): ThirdPartyAgentLink {
+        Preconditions.checkTrue(
+            condition = environmentPermissionService.checkNodePermission(userId, projectId, AuthPermission.CREATE),
+            exception = PermissionForbiddenException(
+                message = I18nUtil.getCodeLanMessage(
+                    EnvironmentMessageCode.ERROR_NODE_NO_CREATE_PERMISSSION,
+                    language = I18nUtil.getLanguage(userId)
+                )
+            )
+        )
         val id = HashUtil.decodeIdToLong(nodeId)
         val agentRecord = thirdPartyAgentDao.getAgentByNodeId(dslContext, id, projectId)
             ?: throw NotFoundException("The agent is not exist")
