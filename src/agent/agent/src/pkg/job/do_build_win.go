@@ -52,6 +52,8 @@ import (
 	"github.com/TencentBlueKing/bk-ci/agent/src/third_components"
 )
 
+var startWorkerCommand = winprocess.StartCommand
+
 func doBuild(
 	buildInfo *api.ThirdPartyBuildInfo,
 	tmpDir string,
@@ -178,10 +180,8 @@ func StartProcessCmd(command string, args []string, workDir string, envMap map[s
 	}
 
 	cmd.Env = envs.Envs()
-	if envMap != nil {
-		for k, v := range envMap {
-			cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
-		}
+	for k, v := range envMap {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
 	}
 
 	err := ucommand.SetUser(cmd, runUser)

@@ -264,10 +264,8 @@ func StartProcessCmd(
 	}
 
 	cmd.Env = envs.Envs()
-	if envMap != nil {
-		for k, v := range envMap {
-			cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
-		}
+	for k, v := range envMap {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
 	}
 
 	err := ucommand.SetUser(cmd, runUser)

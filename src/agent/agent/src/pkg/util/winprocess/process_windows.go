@@ -69,6 +69,7 @@ type Options struct {
 	CreationFlags            uint32
 	NoInherit                bool
 	Desktop                  string
+	TargetUser               string
 	LoadProfile              bool
 	AllowIdentityEnvOverride bool
 }
@@ -180,7 +181,7 @@ func optionsFromCommand(cmd *exec.Cmd, options Options) Options {
 	if launchOptions.WorkDir == "" {
 		launchOptions.WorkDir = cmd.Dir
 	}
-	if launchOptions.Env == nil && launchOptions.Mode == LaunchAsCurrent {
+	if launchOptions.Env == nil {
 		launchOptions.Env = cmd.Env
 	}
 	if cmd.SysProcAttr != nil {
@@ -234,9 +235,9 @@ func tokenForOptions(options Options) (windows.Token, []func(), error) {
 	case LaunchWithPasswordSession0:
 		return tokenFromPassword(options.Account, options.Password, options.LoadProfile)
 	case LaunchInActiveSession:
-		sessionID, err := GetActiveSessionID()
+		sessionID, err := RecoverActiveSessionID(options.TargetUser)
 		if err != nil {
-			return 0, nil, fmt.Errorf("get active session: %w", err)
+			return 0, nil, fmt.Errorf("recover active session: %w", err)
 		}
 		token, err := DuplicateUserToken(sessionID)
 		if err != nil {

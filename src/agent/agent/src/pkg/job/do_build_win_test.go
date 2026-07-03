@@ -13,11 +13,46 @@ import (
 	"github.com/TencentBlueKing/bk-ci/agent/src/pkg/common/logs"
 	"github.com/TencentBlueKing/bk-ci/agent/src/pkg/constant"
 	"github.com/TencentBlueKing/bk-ci/agent/src/pkg/envs"
+	"github.com/TencentBlueKing/bk-ci/agent/src/pkg/util/winprocess"
 )
 
 func init() {
 	logs.UNTestDebugInit()
 	envs.Init()
+	startWorkerCommand = func(cmd *exec.Cmd, options winprocess.Options) error {
+		options.Mode = winprocess.LaunchAsCurrent
+		options.TargetUser = ""
+		options.Desktop = ""
+		return winprocess.StartCommand(cmd, options)
+	}
+}
+
+func TestStartProcessCmd_UsesActiveSessionRecovery(t *testing.T) {
+	old := startWorkerCommand
+	defer func() { startWorkerCommand = old }()
+
+	called := false
+	startWorkerCommand = func(cmd *exec.Cmd, options winprocess.Options) error {
+		called = true
+		if options.Mode != winprocess.LaunchInActiveSession {
+			t.Fatalf("Mode = %v, want LaunchInActiveSession", options.Mode)
+		}
+		if options.TargetUser != "builduser" {
+			t.Fatalf("TargetUser = %q, want builduser", options.TargetUser)
+		}
+		if options.Desktop != "winsta0\\default" {
+			t.Fatalf("Desktop = %q, want winsta0\\default", options.Desktop)
+		}
+		return nil
+	}
+
+	_, err := StartProcessCmd("cmd.exe", []string{"/c", "echo", "hello"}, "", nil, "builduser")
+	if err != nil {
+		t.Fatalf("StartProcessCmd failed: %v", err)
+	}
+	if !called {
+		t.Fatal("startWorkerCommand was not called")
+	}
 }
 
 func TestStartProcessCmd_NoInheritHandles(t *testing.T) {

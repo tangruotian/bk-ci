@@ -37,6 +37,7 @@ type Options struct {
 	CreationFlags            uint32
 	NoInherit                bool
 	Desktop                  string
+	TargetUser               string
 	LoadProfile              bool
 	AllowIdentityEnvOverride bool
 }
