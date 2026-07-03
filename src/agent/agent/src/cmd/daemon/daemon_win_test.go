@@ -13,6 +13,7 @@ import (
 
 	"github.com/TencentBlueKing/bk-ci/agent/src/pkg/common/logs"
 	"github.com/TencentBlueKing/bk-ci/agent/src/pkg/util/systemutil"
+	"github.com/TencentBlueKing/bk-ci/agent/src/pkg/util/winprocess"
 )
 
 func init() {
@@ -20,7 +21,7 @@ func init() {
 }
 
 func TestGetActiveSessionID(t *testing.T) {
-	sessionID, err := GetActiveSessionID()
+	sessionID, err := winprocess.GetActiveSessionID()
 	if err != nil {
 		t.Skipf("GetActiveSessionID returned error (expected on headless/CI): %v", err)
 	}
@@ -32,7 +33,7 @@ func TestGetActiveSessionID(t *testing.T) {
 
 func TestSessionProcessInfo_Close(t *testing.T) {
 	t.Run("zero_handles", func(t *testing.T) {
-		info := &SessionProcessInfo{
+		info := &winprocess.ProcessInfo{
 			PID:           0,
 			ProcessHandle: 0,
 			ThreadHandle:  0,
@@ -44,7 +45,7 @@ func TestSessionProcessInfo_Close(t *testing.T) {
 	})
 
 	t.Run("idempotent", func(t *testing.T) {
-		info := &SessionProcessInfo{
+		info := &winprocess.ProcessInfo{
 			PID:           1234,
 			ProcessHandle: 0,
 			ThreadHandle:  0,
@@ -55,7 +56,7 @@ func TestSessionProcessInfo_Close(t *testing.T) {
 }
 
 func TestEnumerateSessions(t *testing.T) {
-	sessions, err := enumerateSessions()
+	sessions, err :=  winprocess.EnumerateSessions()
 	if err != nil {
 		t.Skipf("enumerateSessions failed (may require specific privileges): %v", err)
 	}
@@ -70,12 +71,12 @@ func TestEnumerateSessions(t *testing.T) {
 }
 
 func TestDuplicateUserToken(t *testing.T) {
-	sessionID, err := GetActiveSessionID()
+	sessionID, err := winprocess.GetActiveSessionID()
 	if err != nil {
 		t.Skipf("no active session: %v", err)
 	}
 
-	token, err := duplicateUserToken(sessionID)
+	token, err := winprocess.DuplicateUserToken(sessionID)
 	if err != nil {
 		// This commonly fails without SYSTEM or admin privileges
 		t.Skipf("duplicateUserToken failed (may need elevated privileges): %v", err)

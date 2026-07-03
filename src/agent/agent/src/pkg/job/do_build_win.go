@@ -48,6 +48,7 @@ import (
 	ucommand "github.com/TencentBlueKing/bk-ci/agent/src/pkg/util/command"
 	"github.com/TencentBlueKing/bk-ci/agent/src/pkg/util/process"
 	"github.com/TencentBlueKing/bk-ci/agent/src/pkg/util/systemutil"
+	"github.com/TencentBlueKing/bk-ci/agent/src/pkg/util/winprocess"
 	"github.com/TencentBlueKing/bk-ci/agent/src/third_components"
 )
 
@@ -194,7 +195,7 @@ func StartProcessCmd(command string, args []string, workDir string, envMap map[s
 	logs.Info("cmd.workDir: ", cmd.Dir)
 	logs.Info("runUser: ", runUser)
 
-	err = cmd.Start()
+	err = winprocess.StartCommand(cmd, winprocess.Options{Mode: winprocess.LaunchAsCurrent})
 	if err != nil {
 		return nil, err
 	}

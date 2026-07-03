@@ -53,6 +53,7 @@ import (
 	"github.com/TencentBlueKing/bk-ci/agent/src/pkg/create"
 	"github.com/TencentBlueKing/bk-ci/agent/src/pkg/util/codesign"
 	"github.com/TencentBlueKing/bk-ci/agent/src/pkg/util/systemutil"
+	"github.com/TencentBlueKing/bk-ci/agent/src/pkg/util/winprocess"
 )
 
 const (
@@ -297,7 +298,13 @@ func launchAgentInUserSession(agentPath, workDir string) bool {
 
 	cmdLine := fmt.Sprintf(`"%s"`, agentPath)
 
-	proc, err := StartProcessAsUser(agentPath, cmdLine, workDir)
+	proc, err := winprocess.Start(winprocess.Options{
+		Mode:    winprocess.LaunchInActiveSession,
+		Command: agentPath,
+		CmdLine: cmdLine,
+		WorkDir: workDir,
+		Desktop: "winsta0\\default",
+	})
 	if err != nil {
 		logs.WithError(err).Warn("StartProcessAsUser failed, no active user session")
 		return false
