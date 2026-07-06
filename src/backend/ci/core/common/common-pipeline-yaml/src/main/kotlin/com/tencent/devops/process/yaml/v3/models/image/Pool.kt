@@ -30,6 +30,7 @@ package com.tencent.devops.process.yaml.v3.models.image
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.tencent.devops.common.pipeline.enums.VMBaseOS
+import com.tencent.devops.common.pipeline.type.agent.ThirdPartyAgentBuildOptions
 import com.tencent.devops.common.pipeline.type.agent.ThirdPartyAgentDockerInfo
 import com.tencent.devops.common.pipeline.type.docker.ImageType
 
@@ -51,7 +52,8 @@ data class Pool(
     val buildType: BuildType? = BuildType.DEVCLOUD,
     val dockerInfo: ThirdPartyAgentDockerInfo? = null,
     val lockResourceWith: String? = null,
-    val image: PoolImage? = null
+    val image: PoolImage? = null,
+    val options: ThirdPartyAgentBuildOptions? = null,
 )
 
 data class PoolImage(

@@ -44,11 +44,14 @@ data class ThirdPartyBuildDockerInfo(
     val options: DockerOptions?,
     val imagePullPolicy: String?
 ) {
-    constructor(input: ThirdPartyAgentDockerInfoDispatch) : this(
+    constructor(
+        input: ThirdPartyAgentDockerInfoDispatch,
+        credential: ThirdPartyBuildDockerInfoCredential? = null
+    ) : this(
         agentId = input.agentId,
         secretKey = input.secretKey,
         image = input.image,
-        credential = ThirdPartyBuildDockerInfoCredential(input.credential),
+        credential = credential ?: ThirdPartyBuildDockerInfoCredential(input.credential),
         // 做一次从model的数据过滤，防止model的多余数据干扰
         options = DockerOptions(
             volumes = input.options?.volumes?.filter { it.isNotBlank() }?.ifEmpty { null },

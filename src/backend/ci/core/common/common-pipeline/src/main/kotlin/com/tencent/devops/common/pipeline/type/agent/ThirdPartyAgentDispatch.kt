@@ -14,7 +14,9 @@ abstract class ThirdPartyAgentDispatch(
     // 第三方构建机用docker作为构建机
     open val dockerInfo: ThirdPartyAgentDockerInfo?,
     // 类型为REUSE_JOB时，被复用的job的value，防止同一个stage并发下拿不到agent，启动时填充
-    open var reusedInfo: ReusedInfo?
+    open var reusedInfo: ReusedInfo?,
+    // 构建参数
+    open val options: ThirdPartyAgentBuildOptions?
 ) : DispatchType(value) {
     // 本身是 id，和被复用对象在同一JOB且被复用对象也是 id，是复用但是位于后面的 JOB
     fun idType(): Boolean =

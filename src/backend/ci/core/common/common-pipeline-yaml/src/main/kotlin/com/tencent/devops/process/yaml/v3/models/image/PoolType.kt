@@ -30,6 +30,7 @@ package com.tencent.devops.process.yaml.v3.models.image
 import com.tencent.devops.common.api.exception.OperationException
 import com.tencent.devops.common.pipeline.type.DispatchType
 import com.tencent.devops.common.pipeline.type.agent.AgentDispatchType
+import com.tencent.devops.common.pipeline.type.agent.ThirdPartyAgentBuildOptions
 import com.tencent.devops.common.pipeline.type.agent.ThirdPartyAgentDockerInfo
 import com.tencent.devops.common.pipeline.type.agent.ThirdPartyAgentEnvDispatchType
 import com.tencent.devops.common.pipeline.type.agent.ThirdPartyAgentIDDispatchType
@@ -41,6 +42,7 @@ import com.tencent.devops.process.yaml.v3.models.job.Credentials
 import com.tencent.devops.process.yaml.v3.models.job.JobRunsOnPoolType
 import com.tencent.devops.process.yaml.v3.models.job.JobRunsOnType
 import com.tencent.devops.process.yaml.v3.models.job.RunsOn
+import com.tencent.devops.process.yaml.v3.models.job.WinOptions
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
@@ -100,7 +102,8 @@ enum class PoolType {
                     workspace = pool.workspace,
                     agentType = AgentDispatchType.REUSE_JOB_ID,
                     dockerInfo = pool.dockerInfo,
-                    reusedInfo = null
+                    reusedInfo = null,
+                    options = pool.options
                 )
 
                 !pool.envName.isNullOrBlank() -> ThirdPartyAgentEnvDispatchType(
@@ -109,7 +112,8 @@ enum class PoolType {
                     workspace = pool.workspace,
                     agentType = AgentDispatchType.NAME,
                     dockerInfo = pool.dockerInfo,
-                    reusedInfo = null
+                    reusedInfo = null,
+                    options = pool.options
                 )
 
                 else -> ThirdPartyAgentIDDispatchType(
@@ -117,7 +121,8 @@ enum class PoolType {
                     workspace = pool.workspace,
                     agentType = AgentDispatchType.NAME,
                     dockerInfo = pool.dockerInfo,
-                    reusedInfo = null
+                    reusedInfo = null,
+                    options = pool.options
                 )
             }
         }
@@ -132,7 +137,8 @@ enum class PoolType {
                     poolType = getPoolType(dispatcher)?.name,
                     workspace = getWorkspace(dispatcher),
                     container = makeContainer(getDockerInfo(dispatcher)),
-                    envProjectId = getEnvProjectId(dispatcher)
+                    envProjectId = getEnvProjectId(dispatcher),
+                    winOptions = makeWinOptions(dispatcher.options)
                 )
             }
             return null
@@ -226,6 +232,17 @@ enum class PoolType {
                 },
                 options = dockerInfo.options,
                 imagePullPolicy = dockerInfo.imagePullPolicy
+            )
+        }
+
+        private fun makeWinOptions(options: ThirdPartyAgentBuildOptions?): WinOptions? {
+            if (options?.winOptions == null) {
+                return null
+            }
+            return WinOptions(
+                mod = options.winOptions!!.mod,
+                username = options.winOptions?.username,
+                credential = options.winOptions?.credential?.credentialId,
             )
         }
 

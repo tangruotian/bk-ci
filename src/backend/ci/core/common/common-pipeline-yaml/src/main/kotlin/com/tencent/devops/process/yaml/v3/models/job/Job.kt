@@ -31,7 +31,9 @@ import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.tencent.devops.common.pipeline.pojo.transfer.CodeTemplate
 import com.tencent.devops.common.pipeline.pojo.transfer.PreTemplateVariable
+import com.tencent.devops.common.pipeline.type.agent.Credential
 import com.tencent.devops.common.pipeline.type.agent.DockerOptions
+import com.tencent.devops.common.pipeline.type.agent.ThirdPartyAgentBuildWinOptions
 import com.tencent.devops.common.pipeline.type.docker.ImageType
 import com.tencent.devops.process.yaml.v3.models.IfField
 import com.tencent.devops.process.yaml.v3.models.step.IStep
@@ -199,7 +201,8 @@ data class RunsOn(
     var needs: Map<String, String>? = null,
     @JsonIgnore
     @get:Schema(title = "跨库分享的projectId, 不序列化出去。只参与内部计算。")
-    var envProjectId: String? = null
+    var envProjectId: String? = null,
+    var winOptions: WinOptions? = null
 ) {
     fun checkLinux() = poolName == "docker" || (
         poolName == null && nodeName == null && lockResourceWith == null
@@ -238,4 +241,10 @@ data class Mutex(
     val queueLength: Int? = null,
     @JsonProperty("timeout-minutes")
     val timeoutMinutes: String? = null
+)
+
+data class WinOptions(
+    var mod: String,
+    var username: String?,
+    var credential: String?
 )

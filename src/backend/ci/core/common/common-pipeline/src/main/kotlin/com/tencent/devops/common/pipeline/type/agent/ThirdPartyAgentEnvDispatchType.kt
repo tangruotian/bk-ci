@@ -39,13 +39,15 @@ data class ThirdPartyAgentEnvDispatchType(
     var envProjectId: String?,
     override val agentType: AgentDispatchType = AgentDispatchType.NAME,
     override val dockerInfo: ThirdPartyAgentDockerInfo?,
-    override var reusedInfo: ReusedInfo?
+    override var reusedInfo: ReusedInfo?,
+    override var options: ThirdPartyAgentBuildOptions?
 ) : ThirdPartyAgentDispatch(
     value = envName,
     workspace = workspace,
     agentType = agentType,
     dockerInfo = dockerInfo,
-    reusedInfo = reusedInfo
+    reusedInfo = reusedInfo,
+    options = options
 ) {
     override fun cleanDataBeforeSave() {
         this.envName = this.envName.trim()
@@ -60,6 +62,7 @@ data class ThirdPartyAgentEnvDispatchType(
             workspace = EnvUtils.parseEnv(workspace!!, variables)
         }
         dockerInfo?.replaceField(variables)
+        options?.replaceField(variables)
     }
 
     override fun buildType() = BuildType.valueOf(BuildType.THIRD_PARTY_AGENT_ENV.name)

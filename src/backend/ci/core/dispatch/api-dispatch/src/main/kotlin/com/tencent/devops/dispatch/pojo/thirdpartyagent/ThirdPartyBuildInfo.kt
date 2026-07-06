@@ -27,6 +27,12 @@
 
 package com.tencent.devops.dispatch.pojo.thirdpartyagent
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties
+import com.fasterxml.jackson.annotation.JsonInclude
+import com.tencent.devops.common.pipeline.type.agent.ThirdPartyAgentBuildWinOptions
+import com.tencent.devops.common.pipeline.type.agent.ThirdPartyAgentDockerInfoDispatch
+import com.tencent.devops.common.pipeline.type.agent.WinOptionsBuildMod
+import com.tencent.devops.dispatch.pojo.thirdpartyagent.ThirdPartyBuildDockerInfo
 import io.swagger.v3.oas.annotations.media.Schema
 
 @Schema(title = "第三方构建信息")
@@ -46,5 +52,25 @@ data class ThirdPartyBuildInfo(
     @get:Schema(title = "流水线执行次数")
     val executeCount: Int?,
     @get:Schema(title = "容器hashId日志使用")
-    val containerHashId: String?
+    val containerHashId: String?,
+    @get:Schema(title = "windows构建相关信息")
+    val winOptions: ThirdPartyBuildWinOptions?
 )
+
+// 下发给agent的windows信息
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class ThirdPartyBuildWinOptions(
+    val buildMod: WinOptionsBuildMod,
+    val username: String?,
+    val credential: ThirdPartyBuildDockerInfoCredential?
+) {
+    constructor(
+        input: ThirdPartyAgentBuildWinOptions,
+        credential: ThirdPartyBuildDockerInfoCredential?
+    ) : this(
+        buildMod = WinOptionsBuildMod.valueOf(input.mod),
+        username = input.username,
+        credential = credential
+    )
+}

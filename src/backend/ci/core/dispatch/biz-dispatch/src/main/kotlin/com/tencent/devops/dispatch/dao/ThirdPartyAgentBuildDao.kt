@@ -29,6 +29,7 @@ package com.tencent.devops.dispatch.dao
 
 import com.tencent.devops.common.api.util.JsonUtil
 import com.tencent.devops.common.api.util.timestamp
+import com.tencent.devops.common.pipeline.type.agent.ThirdPartyAgentBuildOptions
 import com.tencent.devops.common.pipeline.type.agent.ThirdPartyAgentDockerInfoDispatch
 import com.tencent.devops.dispatch.pojo.thirdpartyagent.TPAPipelineBuild
 import com.tencent.devops.dispatch.pojo.enums.PipelineTaskStatus
@@ -111,7 +112,8 @@ class ThirdPartyAgentBuildDao {
         ignoreEnvAgentIds: Set<String>?,
         jobId: String?,
         startUser: String?,
-        stageId: String?
+        stageId: String?,
+        options: ThirdPartyAgentBuildOptions?
     ): Int {
         with(TDispatchThirdpartyAgentBuild.T_DISPATCH_THIRDPARTY_AGENT_BUILD) {
             val now = LocalDateTime.now()
@@ -157,6 +159,14 @@ class ThirdPartyAgentBuildDao {
                     .set(JOB_ID, jobId)
                     .set(START_USER, startUser)
                     .set(STAGE_ID, stageId)
+                    .set(
+                        OPTIONS,
+                        if (options == null) {
+                            null
+                        } else {
+                            JSON.json(JsonUtil.toJson(options, formatted = false))
+                        }
+                    )
                     .where(ID.eq(preRecord.id)).execute()
             }
             return dslContext.insertInto(
@@ -182,7 +192,8 @@ class ThirdPartyAgentBuildDao {
                 IGNORE_ENV_AGENT_IDS,
                 JOB_ID,
                 START_USER,
-                STAGE_ID
+                STAGE_ID,
+                OPTIONS,
             ).values(
                 projectId,
                 agentId,
@@ -209,7 +220,12 @@ class ThirdPartyAgentBuildDao {
                 ignoreEnvAgentIdsJson,
                 jobId,
                 startUser,
-                stageId
+                stageId,
+                if (options == null) {
+                    null
+                } else {
+                    JSON.json(JsonUtil.toJson(options, formatted = false))
+                }
             ).execute()
         }
     }

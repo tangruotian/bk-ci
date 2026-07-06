@@ -101,3 +101,51 @@ data class ThirdPartyAgentDockerInfoDispatch(
         agentId, secretKey, info.image, info.credential, info.options, info.imagePullPolicy
     )
 }
+
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class ThirdPartyAgentBuildOptions(
+    var winOptions: ThirdPartyAgentBuildWinOptions?
+)
+
+
+fun ThirdPartyAgentBuildOptions.replaceField(variables: Map<String, String>) {
+    winOptions?.replaceField(variables)
+}
+
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class ThirdPartyAgentBuildWinOptions(
+    var mod: String,
+    var username: String?,
+    var credential: Credential?
+)
+
+fun ThirdPartyAgentBuildWinOptions.replaceField(variables: Map<String, String>) {
+    mod = EnvUtils.parseEnv(mod, variables)
+    username = EnvUtils.parseEnv(username, variables)
+    if (!credential?.user.isNullOrBlank()) {
+        credential?.user = EnvUtils.parseEnv(credential?.user, variables)
+    }
+    if (!credential?.password.isNullOrBlank()) {
+        credential?.password = EnvUtils.parseEnv(credential?.password, variables)
+    }
+    if (!credential?.credentialId.isNullOrBlank()) {
+        credential?.credentialId = EnvUtils.parseEnv(credential?.credentialId, variables)
+    }
+}
+
+enum class WinOptionsBuildMod {
+    UI,
+    LOGIN,
+    DEFAULT,
+    ;
+
+    companion object {
+        fun valueOf(name: String) = when (name) {
+            WinOptionsBuildMod.UI.name -> UI
+            WinOptionsBuildMod.LOGIN.name -> LOGIN
+            else -> DEFAULT
+        }
+    }
+}

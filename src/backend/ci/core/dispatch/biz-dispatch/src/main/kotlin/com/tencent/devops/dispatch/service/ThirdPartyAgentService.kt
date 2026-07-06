@@ -50,6 +50,9 @@ import com.tencent.devops.common.event.enums.PipelineBuildStatusBroadCastEventTy
 import com.tencent.devops.common.event.pojo.pipeline.PipelineBuildStatusBroadCastEvent
 import com.tencent.devops.common.notify.enums.NotifyType
 import com.tencent.devops.common.pipeline.enums.BuildStatus
+import com.tencent.devops.common.pipeline.type.agent.Credential
+import com.tencent.devops.common.pipeline.type.agent.ThirdPartyAgentBuildOptions
+import com.tencent.devops.common.pipeline.type.agent.ThirdPartyAgentBuildWinOptions
 import com.tencent.devops.common.pipeline.type.agent.ThirdPartyAgentDockerInfoDispatch
 import com.tencent.devops.common.redis.RedisOperation
 import com.tencent.devops.common.service.utils.HomeHostUtil
@@ -66,7 +69,9 @@ import com.tencent.devops.dispatch.pojo.thirdpartyagent.TPAPipelineBuildCountRes
 import com.tencent.devops.dispatch.pojo.thirdpartyagent.ThirdPartyAskInfo
 import com.tencent.devops.dispatch.pojo.thirdpartyagent.ThirdPartyAskResp
 import com.tencent.devops.dispatch.pojo.thirdpartyagent.ThirdPartyBuildDockerInfo
+import com.tencent.devops.dispatch.pojo.thirdpartyagent.ThirdPartyBuildDockerInfoCredential
 import com.tencent.devops.dispatch.pojo.thirdpartyagent.ThirdPartyBuildInfo
+import com.tencent.devops.dispatch.pojo.thirdpartyagent.ThirdPartyBuildWinOptions
 import com.tencent.devops.dispatch.pojo.thirdpartyagent.ThirdPartyBuildWithStatus
 import com.tencent.devops.dispatch.utils.TPACommonUtil
 import com.tencent.devops.dispatch.utils.ThirdPartyAgentLock
@@ -146,7 +151,8 @@ class ThirdPartyAgentService @Autowired constructor(
                     ignoreEnvAgentIds = ignoreEnvAgentIds,
                     jobId = jobId,
                     startUser = userId,
-                    stageId = stageId
+                    stageId = stageId,
+                    options = dispatchType.options
                 )
             } catch (e: DeadlockLoserDataAccessException) {
                 logger.warn("Fail to add the third party agent build of ($buildId|$vmSeqId|${agent.agentId}")
@@ -290,32 +296,28 @@ class ThirdPartyAgentService @Autowired constructor(
                         object : TypeReference<ThirdPartyAgentDockerInfoDispatch>() {}
                     )
                 }
-                var errMsg: String? = null
                 var buildDockerInfo: ThirdPartyBuildDockerInfo? = null
                 // 只有凭据ID的参与计算
                 if (dockerInfo != null) {
-                    if ((
-                                dockerInfo.credential?.user.isNullOrBlank() &&
-                                        dockerInfo.credential?.password.isNullOrBlank()
-                                ) &&
-                        !(dockerInfo.credential?.credentialId.isNullOrBlank())
-                    ) {
-                        val (userName, password) = try {
-                            ThirdPartyAgentUtils.getTicket(
-                                client = client,
-                                projectId = projectId,
-                                credInfo = dockerInfo.credential!!
-                            )
-                        } catch (e: Exception) {
-                            logger.error("$projectId agent docker build get ticket ${dockerInfo.credential} error", e)
-                            errMsg = e.message
-                            Pair(null, null)
-                        }
-                        dockerInfo.credential?.user = userName
-                        dockerInfo.credential?.password = password
-                    }
-                    buildDockerInfo = ThirdPartyBuildDockerInfo(dockerInfo)
-                    buildDockerInfo.credential?.errMsg = errMsg
+                    buildDockerInfo =
+                        ThirdPartyBuildDockerInfo(dockerInfo, genCredential(projectId, dockerInfo.credential))
+                }
+
+                // 构建参数构造
+                val options = if (build.options == null) {
+                    null
+                } else {
+                    JsonUtil.getObjectMapper().readValue(
+                        build.options.data(),
+                        object : TypeReference<ThirdPartyAgentBuildOptions>() {}
+                    )
+                }
+                var winOptions: ThirdPartyBuildWinOptions? = null
+                if (options?.winOptions != null) {
+                    winOptions = ThirdPartyBuildWinOptions(
+                        options.winOptions!!,
+                        genCredential(projectId, options.winOptions?.credential)
+                    )
                 }
 
                 return AgentResult(
@@ -328,7 +330,8 @@ class ThirdPartyAgentService @Autowired constructor(
                         pipelineId = build.pipelineId,
                         dockerBuildInfo = buildDockerInfo,
                         executeCount = build.executeCount,
-                        containerHashId = build.containerHashId
+                        containerHashId = build.containerHashId,
+                        winOptions = winOptions
                     )
                 )
             } finally {
@@ -338,6 +341,28 @@ class ThirdPartyAgentService @Autowired constructor(
             logger.warn("Fail to start build for agent($agentId)", ignored)
             throw ignored
         }
+    }
+
+    private fun genCredential(projectId: String, credential: Credential?): ThirdPartyBuildDockerInfoCredential? {
+        if (credential == null) {
+            return null
+        }
+        if ((credential.user.isNullOrBlank() && credential.password.isNullOrBlank()) &&
+            !(credential.credentialId.isNullOrBlank())
+        ) {
+            val (userName, password) = try {
+                ThirdPartyAgentUtils.getTicket(
+                    client = client,
+                    projectId = projectId,
+                    credInfo = credential
+                )
+            } catch (e: Exception) {
+                logger.error("$projectId agent build get ticket $credential error", e)
+                return ThirdPartyBuildDockerInfoCredential(null, null, e.message)
+            }
+            return ThirdPartyBuildDockerInfoCredential(userName, password, null)
+        }
+        return null
     }
 
     fun checkIfCanUpgradeByVersion(
