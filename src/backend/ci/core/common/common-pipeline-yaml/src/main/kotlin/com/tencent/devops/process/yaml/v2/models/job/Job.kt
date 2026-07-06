@@ -30,6 +30,7 @@ package com.tencent.devops.process.yaml.v2.models.job
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.tencent.devops.common.pipeline.type.agent.DockerOptions
 import com.tencent.devops.process.yaml.v2.models.step.Step
+import com.tencent.devops.process.yaml.v3.models.job.WinOptions
 import io.swagger.v3.oas.annotations.media.Schema
 
 /**
@@ -131,7 +132,8 @@ data class RunsOn(
     @get:Schema(title = "queue-timeout-minutes")
     @JsonProperty("queue-timeout-minutes")
     val queueTimeoutMinutes: Int? = null,
-    val needs: Map<String, String>? = null
+    val needs: Map<String, String>? = null,
+    var winOptions: WinOptions? = null
 )
 
 enum class JobRunsOnType(val type: String) {

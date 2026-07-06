@@ -37,6 +37,9 @@ import com.tencent.devops.common.api.util.YamlUtil
 import com.tencent.devops.common.pipeline.enums.VMBaseOS
 import com.tencent.devops.common.pipeline.type.DispatchType
 import com.tencent.devops.common.pipeline.type.agent.AgentDispatchType
+import com.tencent.devops.common.pipeline.type.agent.Credential
+import com.tencent.devops.common.pipeline.type.agent.ThirdPartyAgentBuildOptions
+import com.tencent.devops.common.pipeline.type.agent.ThirdPartyAgentBuildWinOptions
 import com.tencent.devops.common.pipeline.type.agent.ThirdPartyAgentDockerInfo
 import com.tencent.devops.common.pipeline.type.agent.ThirdPartyAgentEnvDispatchType
 import com.tencent.devops.common.pipeline.type.docker.DockerDispatchType
@@ -113,7 +116,8 @@ object StreamDispatchUtils {
                     workspace = workspace,
                     agentType = AgentDispatchType.NAME,
                     dockerInfo = null,
-                    reusedInfo = null
+                    reusedInfo = null,
+                    options = null
                 )
             }
 
@@ -137,13 +141,34 @@ object StreamDispatchUtils {
                 storeImage = null
             )
 
+            val winOptions = job.runsOn.winOptions
+            val options = if (winOptions != null) {
+                ThirdPartyAgentBuildOptions(
+                    winOptions = ThirdPartyAgentBuildWinOptions(
+                        winOptions.mod,
+                        winOptions.username,
+                        Credential(
+                            user = null,
+                            password = null,
+                            credentialId = winOptions.credential,
+                            acrossTemplateId = null,
+                            jobId = job.id,
+                            credentialProjectId = null
+                        )
+                    )
+                )
+            } else {
+                null
+            }
+
             return ThirdPartyAgentEnvDispatchType(
                 envProjectId = null,
                 envName = poolName,
                 workspace = workspace,
                 agentType = AgentDispatchType.NAME,
                 dockerInfo = dockerInfo,
-                reusedInfo = null
+                reusedInfo = null,
+                options = options
             )
         }
 
