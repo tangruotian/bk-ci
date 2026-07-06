@@ -45,7 +45,6 @@ import (
 	"github.com/TencentBlueKing/bk-ci/agent/src/pkg/constant"
 	"github.com/TencentBlueKing/bk-ci/agent/src/pkg/envs"
 	"github.com/TencentBlueKing/bk-ci/agent/src/pkg/i18n"
-	ucommand "github.com/TencentBlueKing/bk-ci/agent/src/pkg/util/command"
 	"github.com/TencentBlueKing/bk-ci/agent/src/pkg/util/process"
 	"github.com/TencentBlueKing/bk-ci/agent/src/pkg/util/systemutil"
 	"github.com/TencentBlueKing/bk-ci/agent/src/pkg/util/winprocess"
@@ -93,7 +92,7 @@ func doBuild(
 		"-jar",
 		config.BuildAgentJarPath(),
 		getEncodedBuildInfo(buildInfo)}
-	cmd, err := StartProcessCmd(startCmd, args, workDir, goEnv, runUser)
+	cmd, err := StartProcessCmd(buildInfo.WinOptions, startCmd, args, workDir, goEnv)
 	if err != nil {
 		errMsg := i18n.Localize("StartWorkerProcessFailed", map[string]interface{}{"err": err.Error()})
 		logs.Error(errMsg)
@@ -154,7 +153,7 @@ func doBuild(
 	return nil
 }
 
-func StartProcessCmd(command string, args []string, workDir string, envMap map[string]string, runUser string) (*exec.Cmd, error) {
+func StartProcessCmd(winOptions *api.WinOptions, command string, args []string, workDir string, envMap map[string]string) (*exec.Cmd, error) {
 	cmd := exec.Command(command)
 
 	// DEVOPS_AGENT_CLOSE_FD_INHERIT: optional fd isolation matching Windows' NoInheritHandles.
@@ -162,8 +161,8 @@ func StartProcessCmd(command string, args []string, workDir string, envMap map[s
 		NoInheritHandles: false,
 	}
 	if envs.FetchEnvAndCheck(constant.DevopsAgentCloseFdInherit, "true") {
-		logs.Info("DEVOPS_AGENT_CLOSE_FD_INHERIT enabled: fd isolation for build process")
 		sysProcAttr.NoInheritHandles = true
+		logs.Info("DEVOPS_AGENT_CLOSE_FD_INHERIT enabled: fd isolation for build process")
 	}
 	if envs.FetchEnvAndCheck(constant.DevopsAgentEnableNewConsole, "true") {
 		sysProcAttr.CreationFlags = constant.WinCommandNewConsole
@@ -184,18 +183,31 @@ func StartProcessCmd(command string, args []string, workDir string, envMap map[s
 		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
 	}
 
-	err := ucommand.SetUser(cmd, runUser)
-	if err != nil {
-		logs.Error("set user failed: ", err.Error())
-		return nil, errors.Wrap(err, "Please check [devops.slave.user] in the {agent_dir}/.agent.properties")
-	}
-
 	logs.Info("cmd.Path: ", cmd.Path)
 	logs.Info("cmd.Args: ", cmd.Args)
 	logs.Info("cmd.workDir: ", cmd.Dir)
-	logs.Info("runUser: ", runUser)
 
-	err = winprocess.StartCommand(cmd, winprocess.Options{Mode: winprocess.LaunchAsCurrent})
+	options := winprocess.Options{Mode: winprocess.LaunchAsCurrent}
+	if winOptions != nil {
+		if winOptions.BuildMod == string(api.WinOptionModUI) {
+			options = winprocess.Options{
+				Mode:       winprocess.LaunchInActiveSession,
+				TargetUser: winOptions.UserName,
+			}
+		} else if winOptions.BuildMod == string(api.WinOptionModLogin) {
+			if winOptions.Credential.ErrMsg != "" {
+				logs.Error("WIN_JOBG|get cred error ", winOptions.Credential.ErrMsg)
+				return nil, errors.New("get win options cred error")
+			}
+			options = winprocess.Options{
+				Mode:     winprocess.LaunchWithPasswordSession0,
+				Account:  winOptions.Credential.User,
+				Password: winOptions.Credential.Password,
+			}
+		}
+	}
+
+	err := startWorkerCommand(cmd, options)
 	if err != nil {
 		return nil, err
 	}

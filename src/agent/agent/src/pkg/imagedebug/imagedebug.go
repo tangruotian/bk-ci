@@ -326,6 +326,7 @@ func buildDebugCreateArgs(containerName, image string, debugInfo *api.ImageDebug
 		args = append(args, "--cap-add", strings.TrimSpace(v))
 	}
 	args = append(args, mountArgs...)
+	args = append(args, "-w", constant.DockerDataDir)
 	args = append(args, "--entrypoint", "/bin/sh", image, "-c", entryPointCmd)
 	return args, nil
 }
@@ -345,7 +346,10 @@ func parseDebugContainerMountArgs(debugInfo *api.ImageDebug) ([]string, error) {
 	if err != nil && !os.IsExist(err) {
 		return nil, errors.Wrapf(err, "create local data dir %s error", dataDir)
 	}
-	args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=%s", dataDir, constant.DockerDataDir))
+	// 给用户一个不挂载的方式
+	if dataDir != "NO_MOUNT" {
+		args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=%s", dataDir, constant.DockerDataDir))
+	}
 
 	logsDir := fmt.Sprintf("%s/%s/logs/%s/%s", workDir, job_docker.LocalDockerWorkSpaceDirName, debugInfo.BuildId, debugInfo.VmSeqId)
 	err = systemutil.MkDir(logsDir)

@@ -47,6 +47,7 @@ type ThirdPartyBuildInfo struct {
 	DockerBuildInfo *ThirdPartyDockerBuildInfo `json:"dockerBuildInfo"`
 	ExecuteCount    *int                       `json:"executeCount"`
 	ContainerHashId string                     `json:"containerHashId"`
+	WinOptions      *WinOptions                `json:"winOptions"`
 }
 
 type BuildJobType string
@@ -92,6 +93,20 @@ type DockerOptions struct {
 	Network    []string `json:"network"`
 	User       string   `json:"user"`
 }
+
+type WinOptions struct {
+	BuildMod   string     `json:"buildMod"`
+	UserName   string     `json:"username"`
+	Credential Credential `json:"credential"`
+}
+
+type WinOptionMod string
+
+const (
+	WinOptionModUI      WinOptionMod = "UI"
+	WinOptionModLogin   WinOptionMod = "LOGIN"
+	WinOptionModDefault WinOptionMod = "DEFAULT"
+)
 
 type ThirdPartyBuildWithStatus struct {
 	ThirdPartyBuildInfo
