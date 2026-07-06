@@ -36,6 +36,8 @@ import com.tencent.devops.common.pipeline.enums.VMBaseOS
 import com.tencent.devops.common.pipeline.type.DispatchType
 import com.tencent.devops.common.pipeline.type.agent.CreateAgentIdDispatchType
 import com.tencent.devops.common.pipeline.type.agent.Credential
+import com.tencent.devops.common.pipeline.type.agent.ThirdPartyAgentBuildOptions
+import com.tencent.devops.common.pipeline.type.agent.ThirdPartyAgentBuildWinOptions
 import com.tencent.devops.common.pipeline.type.agent.ThirdPartyAgentDockerInfo
 import com.tencent.devops.common.pipeline.type.agent.ThirdPartyAgentDockerInfoStoreImage
 import com.tencent.devops.common.pipeline.type.agent.ThirdPartyAgentEnvDispatchType
@@ -52,6 +54,7 @@ import com.tencent.devops.process.yaml.v3.models.job.Job
 import com.tencent.devops.process.yaml.v3.models.job.RunsOn
 import com.tencent.devops.process.yaml.v3.utils.StreamDispatchUtils
 import com.tencent.devops.process.utils.NODE_AGENT_ID
+import com.tencent.devops.process.yaml.v3.models.job.WinOptions
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Component
@@ -179,7 +182,8 @@ class DispatchTransfer @Autowired(required = false) constructor(
                         agentName = nodeName,
                         dockerInfo = getDockerInfo(job, buildTemplateAcrossInfo),
                         lockResourceWith = lockResourceWith,
-                        envProjectId = envProjectId
+                        envProjectId = envProjectId,
+                        options = getOptions(job, winOptions)
                     )
                 }
             )
@@ -197,6 +201,7 @@ class DispatchTransfer @Autowired(required = false) constructor(
                 value = "\${{variables.$NODE_AGENT_ID}}",
                 workspace = workspace,
                 dockerInfo = getDockerInfo(job, buildTemplateAcrossInfo),
+                options = getOptions(job, winOptions)
             )
         }
     }
@@ -234,6 +239,29 @@ class DispatchTransfer @Autowired(required = false) constructor(
                 }
             )
         } else null
+    }
+
+    private fun getOptions(
+        job: Job,
+        winOptions: WinOptions?
+    ): ThirdPartyAgentBuildOptions? {
+        if (winOptions == null) {
+            return null
+        }
+        return ThirdPartyAgentBuildOptions(
+            winOptions = ThirdPartyAgentBuildWinOptions(
+                winOptions.mod,
+                winOptions.username,
+                Credential(
+                    user = null,
+                    password = null,
+                    credentialId = winOptions.credential,
+                    acrossTemplateId = null,
+                    jobId = job.id,
+                    credentialProjectId = null
+                )
+            )
+        )
     }
 
     fun dispatch2RunsOn(dispatcher: DispatchType): RunsOn? {

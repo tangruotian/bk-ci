@@ -36,6 +36,7 @@ data class CreateAgentIdDispatchType(
     var envHashId: String? = "\${{variables.BK_CI_NODE_ENV_HASH_ID}}",
     var workspace: String?,
     val dockerInfo: ThirdPartyAgentDockerInfo?,
+    val options: ThirdPartyAgentBuildOptions?
 ) : DispatchType(value) {
     override fun cleanDataBeforeSave() {
         this.value = this.value.trim()

@@ -205,7 +205,8 @@ class ThirdPartyDispatchService @Autowired constructor(
                         workspace = dispatchType.workspace,
                         agentType = AgentDispatchType.REUSE_JOB_ID,
                         dockerInfo = dispatchType.dockerInfo,
-                        reusedInfo = null
+                        reusedInfo = null,
+                        options = dispatchType.options
                     )
                 )
                 return
@@ -220,7 +221,8 @@ class ThirdPartyDispatchService @Autowired constructor(
                         workspace = originDispatchType.workspace,
                         agentType = originDispatchType.agentType,
                         dockerInfo = null,
-                        reusedInfo = null
+                        reusedInfo = null,
+                        options = null
                     )
                 )
             }
@@ -234,7 +236,8 @@ class ThirdPartyDispatchService @Autowired constructor(
                         workspace = originDispatchType.workspace,
                         agentType = AgentDispatchType.ID,
                         dockerInfo = originDispatchType.dockerInfo,
-                        reusedInfo = null
+                        reusedInfo = null,
+                        options = originDispatchType.options
                     ),
                     envId = originDispatchType.envHashId?.let {
                         if (it == AllCreateNodeEnv.hashId()) {
