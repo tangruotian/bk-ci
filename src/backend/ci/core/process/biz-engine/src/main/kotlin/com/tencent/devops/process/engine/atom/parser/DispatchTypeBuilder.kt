@@ -62,7 +62,8 @@ class DispatchTypeBuilder @Autowired constructor(
                     workspace = workspace,
                     agentType = AgentDispatchType.ID,
                     dockerInfo = null,
-                    reusedInfo = null
+                    reusedInfo = null,
+                    options = null
                 )
             } else if (envId.isNotBlank()) {
                 ThirdPartyAgentEnvDispatchType(
@@ -71,7 +72,8 @@ class DispatchTypeBuilder @Autowired constructor(
                     workspace = workspace,
                     agentType = AgentDispatchType.ID,
                     dockerInfo = null,
-                    reusedInfo = null
+                    reusedInfo = null,
+                    options = null
                 )
             } // docker建机指定版本(旧)
             else if (!param.dockerBuildVersion.isNullOrBlank()) {
