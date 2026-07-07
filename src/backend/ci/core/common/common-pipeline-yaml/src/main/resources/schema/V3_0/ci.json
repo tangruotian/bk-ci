@@ -3445,6 +3445,9 @@
                   },
                   "xcode" : {
                     "type" : "string"
+                  },
+                  "winOptions" : {
+                    "type" : "object"
                   }
                 }
               } ]
