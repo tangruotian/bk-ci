@@ -31,6 +31,30 @@ var identityEnvKeys = map[string]struct{}{
 	"LOCALAPPDATA": {},
 }
 
+var procExpandEnvironmentStringsForUserW = moduserenv.NewProc("ExpandEnvironmentStringsForUserW")
+
+func expandEnvironmentStringForUser(token windows.Token, value string) (string, error) {
+	src, err := windows.UTF16PtrFromString(value)
+	if err != nil {
+		return "", err
+	}
+
+	size := uint32(32767)
+	buffer := make([]uint16, size)
+
+	ret, _, callErr := procExpandEnvironmentStringsForUserW.Call(
+		uintptr(token),
+		uintptr(unsafe.Pointer(src)),
+		uintptr(unsafe.Pointer(&buffer[0])),
+		uintptr(size),
+	)
+	if ret == 0 {
+		return "", callErr
+	}
+
+	return windows.UTF16ToString(buffer), nil
+}
+
 func CreateEnvironment(token windows.Token) ([]string, func(), error) {
 	var envBlock uintptr
 	ret, _, err := procCreateEnvironmentBlock.Call(
@@ -41,10 +65,28 @@ func CreateEnvironment(token windows.Token) ([]string, func(), error) {
 	if ret == 0 {
 		return nil, nil, err
 	}
+
 	cleanup := func() {
 		procDestroyEnvironmentBlock.Call(envBlock)
 	}
-	return envBlockToStrings(envBlock), cleanup, nil
+
+	envs := envBlockToStrings(envBlock)
+	for i, env := range envs {
+		key, value, ok := strings.Cut(env, "=")
+		if !ok || !strings.Contains(value, "%") {
+			continue
+		}
+
+		expanded, expandErr := expandEnvironmentStringForUser(token, value)
+		if expandErr != nil {
+			cleanup()
+			return nil, nil, expandErr
+		}
+
+		envs[i] = key + "=" + expanded
+	}
+
+	return envs, cleanup, nil
 }
 
 func envBlockToStrings(block uintptr) []string {
@@ -81,7 +123,7 @@ func buildEnvBlock(env []string) []uint16 {
 	return utf16.Encode([]rune(joined))
 }
 
-func mergeEnv(base []string, extra map[string]string, allowIdentityOverride bool) []string {
+func mergeEnv(base []string, extra map[string]string) []string {
 	result := append([]string(nil), base...)
 	if len(extra) == 0 {
 		return normalizeEnv(result)
@@ -100,7 +142,7 @@ func mergeEnv(base []string, extra map[string]string, allowIdentityOverride bool
 	}
 	sort.Strings(keys)
 	for _, key := range keys {
-		if !allowIdentityOverride && isIdentityEnvKey(key) {
+		if isIdentityEnvKey(key) {
 			continue
 		}
 		item := key + "=" + extra[key]

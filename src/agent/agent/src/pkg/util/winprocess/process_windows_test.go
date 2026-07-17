@@ -29,7 +29,7 @@ func TestMergeEnvSkipsIdentityByDefault(t *testing.T) {
 		"Path":     "C:\\Tools",
 		"USERNAME": "other",
 		"CUSTOM":   "value",
-	}, false)
+	})
 
 	got := map[string]string{}
 	for _, item := range env {

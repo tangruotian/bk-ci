@@ -59,22 +59,19 @@ const (
 )
 
 type Options struct {
-	Mode                     LaunchMode
-	Account                  string
-	Password                 string
-	Command                  string
-	Args                     []string
-	CmdLine                  string
-	WorkDir                  string
-	Env                      []string
-	ExtraEnv                 map[string]string
-	CreationFlags            uint32
-	NoInherit                bool
-	Desktop                  string
-	TargetUser               string
-	LoadProfile              bool
-	AllowIdentityEnvOverride bool
-	LogCallBack              func(msg string, level logrus.Level)
+	Mode          LaunchMode
+	Account       string
+	Password      string
+	Command       string
+	Args          []string
+	CmdLine       string
+	WorkDir       string
+	ExtraEnv      map[string]string
+	CreationFlags uint32
+	NoInherit     bool
+	Desktop       string
+	TargetUser    string
+	LogCallBack   func(msg string, level logrus.Level)
 }
 
 func (o *Options) log(msg string, level logrus.Level) {
@@ -181,9 +178,6 @@ func applyCommandOptions(cmd *exec.Cmd, options Options) {
 	if options.WorkDir != "" {
 		cmd.Dir = options.WorkDir
 	}
-	if options.Env != nil || options.ExtraEnv != nil {
-		cmd.Env = mergeEnv(options.Env, options.ExtraEnv, options.AllowIdentityEnvOverride)
-	}
 	if cmd.SysProcAttr == nil {
 		cmd.SysProcAttr = &syscall.SysProcAttr{}
 	}
@@ -198,9 +192,6 @@ func optionsFromCommand(cmd *exec.Cmd, options Options) Options {
 	}
 	if launchOptions.WorkDir == "" {
 		launchOptions.WorkDir = cmd.Dir
-	}
-	if launchOptions.Env == nil {
-		launchOptions.Env = cmd.Env
 	}
 	if cmd.SysProcAttr != nil {
 		launchOptions.CreationFlags |= cmd.SysProcAttr.CreationFlags
@@ -219,7 +210,7 @@ func startProcess(options Options, appPath, cmdLine string) (*ProcessInfo, error
 		cleanup = append([]func(){func() { tokenToClose.Close() }}, cleanup...)
 	}
 
-	env, envCleanup, err := environmentForOptions(options, token)
+	env, envCleanup, err := environmentForOptions(token)
 	if err != nil {
 		runCleanup(cleanup)
 		return nil, err
@@ -227,7 +218,7 @@ func startProcess(options Options, appPath, cmdLine string) (*ProcessInfo, error
 	if envCleanup != nil {
 		defer envCleanup()
 	}
-	env = mergeEnv(env, options.ExtraEnv, options.AllowIdentityEnvOverride)
+	env = mergeEnv(env, options.ExtraEnv)
 
 	flags := options.CreationFlags | CreateUnicodeEnvironment
 	if options.Mode != LaunchAsCurrent && flags&CreateNoWindow == 0 {
@@ -251,7 +242,7 @@ func tokenForOptions(options Options) (windows.Token, []func(), error) {
 	case LaunchAsCurrent:
 		return 0, nil, nil
 	case LaunchWithPasswordSession0:
-		return tokenFromPassword(options.Account, options.Password, options.LoadProfile)
+		return tokenFromPassword(options.Account, options.Password)
 	case LaunchInActiveSession:
 		sessionID, err := RecoverActiveSessionID(options.TargetUser)
 		if err != nil {
@@ -267,7 +258,7 @@ func tokenForOptions(options Options) (windows.Token, []func(), error) {
 	}
 }
 
-func tokenFromPassword(account, password string, _ bool) (windows.Token, []func(), error) {
+func tokenFromPassword(account, password string) (windows.Token, []func(), error) {
 	user, domain := SplitUserDomain(account)
 	var logonToken windows.Handle
 	ret, _, err := procLogonUserW.Call(
@@ -334,10 +325,7 @@ type profileInfo struct {
 	Profile     windows.Handle
 }
 
-func environmentForOptions(options Options, token windows.Token) ([]string, func(), error) {
-	if options.Env != nil {
-		return append([]string(nil), options.Env...), nil, nil
-	}
+func environmentForOptions(token windows.Token) ([]string, func(), error) {
 	if token == 0 {
 		return nil, nil, nil
 	}

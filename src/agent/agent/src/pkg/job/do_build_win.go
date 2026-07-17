@@ -93,7 +93,9 @@ func doBuild(
 		"-jar",
 		config.BuildAgentJarPath(),
 		getEncodedBuildInfo(buildInfo)}
-	cmd, err := StartProcessCmd(buildInfo.WinOptions, startCmd, args, workDir, goEnv)
+	cmd, err := StartProcessCmd(buildInfo.WinOptions, startCmd, args, workDir, goEnv, func(msg string, level logrus.Level) {
+		logCallBack(msg, level, buildInfo)
+	})
 	if err != nil {
 		errMsg := i18n.Localize("StartWorkerProcessFailed", map[string]interface{}{"err": err.Error()})
 		logs.Error(errMsg)
@@ -154,7 +156,14 @@ func doBuild(
 	return nil
 }
 
-func StartProcessCmd(winOptions *api.WinOptions, command string, args []string, workDir string, envMap map[string]string) (*exec.Cmd, error) {
+func StartProcessCmd(
+	winOptions *api.WinOptions,
+	command string,
+	args []string,
+	workDir string,
+	envMap map[string]string,
+	logCallBack func(string, logrus.Level),
+) (*exec.Cmd, error) {
 	cmd := exec.Command(command)
 
 	// DEVOPS_AGENT_CLOSE_FD_INHERIT: optional fd isolation matching Windows' NoInheritHandles.
@@ -188,13 +197,15 @@ func StartProcessCmd(winOptions *api.WinOptions, command string, args []string, 
 	logs.Info("cmd.Args: ", cmd.Args)
 	logs.Info("cmd.workDir: ", cmd.Dir)
 
-	options := winprocess.Options{Mode: winprocess.LaunchAsCurrent, LogCallBack: LogCallBack}
+	options := winprocess.Options{Mode: winprocess.LaunchAsCurrent, LogCallBack: logCallBack}
 	if winOptions != nil {
 		if winOptions.BuildMod == string(api.WinOptionModUI) {
+			cmd.Env = nil
 			options = winprocess.Options{
 				Mode:        winprocess.LaunchInActiveSession,
 				TargetUser:  winOptions.UserName,
-				LogCallBack: LogCallBack,
+				LogCallBack: logCallBack,
+				ExtraEnv:    envMap,
 			}
 			options.Info("use UI run worker process")
 		} else if winOptions.BuildMod == string(api.WinOptionModLogin) {
@@ -202,11 +213,13 @@ func StartProcessCmd(winOptions *api.WinOptions, command string, args []string, 
 				logs.Error("WIN_JOBG|get cred error ", winOptions.Credential.ErrMsg)
 				return nil, errors.New("get win options cred error")
 			}
+			cmd.Env = nil
 			options = winprocess.Options{
 				Mode:        winprocess.LaunchWithPasswordSession0,
 				Account:     winOptions.Credential.User,
 				Password:    winOptions.Credential.Password,
-				LogCallBack: LogCallBack,
+				LogCallBack: logCallBack,
+				ExtraEnv:    envMap,
 			}
 			options.Info("use password Login run worker process")
 		}
@@ -220,6 +233,15 @@ func StartProcessCmd(winOptions *api.WinOptions, command string, args []string, 
 	return cmd, nil
 }
 
-func LogCallBack(msg string, level logrus.Level) {
-
+func logCallBack(msg string, level logrus.Level, buildInfo *api.ThirdPartyBuildInfo) {
+	switch level {
+	case logrus.ErrorLevel:
+		postLog(true, msg, buildInfo, api.LogtypeError)
+	case logrus.WarnLevel:
+		postLog(false, msg, buildInfo, api.LogtypeWarn)
+	case logrus.DebugLevel:
+		postLog(false, msg, buildInfo, api.LogtypeDebug)
+	default:
+		postLog(false, msg, buildInfo, api.LogtypeLog)
+	}
 }

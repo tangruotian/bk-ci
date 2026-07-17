@@ -15,6 +15,7 @@ import (
 	"github.com/TencentBlueKing/bk-ci/agent/src/pkg/constant"
 	"github.com/TencentBlueKing/bk-ci/agent/src/pkg/envs"
 	"github.com/TencentBlueKing/bk-ci/agent/src/pkg/util/winprocess"
+	"github.com/sirupsen/logrus"
 )
 
 func init() {
@@ -26,6 +27,10 @@ func init() {
 		options.Desktop = ""
 		return winprocess.StartCommand(cmd, options)
 	}
+}
+
+func logCB(s string, l logrus.Level) {
+	logs.Log(l, s)
 }
 
 func TestStartProcessCmd_UsesActiveSessionRecovery(t *testing.T) {
@@ -47,7 +52,7 @@ func TestStartProcessCmd_UsesActiveSessionRecovery(t *testing.T) {
 	_, err := StartProcessCmd(&api.WinOptions{
 		BuildMod: string(api.WinOptionModUI),
 		UserName: "builduser",
-	}, "cmd.exe", []string{"/c", "echo", "hello"}, "", nil)
+	}, "cmd.exe", []string{"/c", "echo", "hello"}, "", nil, logCB)
 	if err != nil {
 		t.Fatalf("StartProcessCmd failed: %v", err)
 	}
@@ -60,7 +65,7 @@ func TestStartProcessCmd_NoInheritHandles(t *testing.T) {
 	// Default: NoInheritHandles should be true
 	os.Setenv(constant.DevopsAgentCloseFdInherit, "true")
 
-	cmd, err := StartProcessCmd(nil, "cmd.exe", []string{"/c", "echo", "hello"}, "", nil)
+	cmd, err := StartProcessCmd(nil, "cmd.exe", []string{"/c", "echo", "hello"}, "", nil, logCB)
 	if err != nil {
 		t.Fatalf("StartProcessCmd failed: %v", err)
 	}
@@ -80,7 +85,7 @@ func TestStartProcessCmd_NoInheritHandles_Disabled(t *testing.T) {
 	os.Setenv(constant.DevopsAgentCloseFdInherit, "false")
 	defer os.Unsetenv(constant.DevopsAgentCloseFdInherit)
 
-	cmd, err := StartProcessCmd(nil, "cmd.exe", []string{"/c", "echo", "hello"}, "", nil)
+	cmd, err := StartProcessCmd(nil, "cmd.exe", []string{"/c", "echo", "hello"}, "", nil, logCB)
 	if err != nil {
 		t.Fatalf("StartProcessCmd failed: %v", err)
 	}
@@ -100,7 +105,7 @@ func TestStartProcessCmd_NewConsoleFlag(t *testing.T) {
 	t.Run("without_new_console", func(t *testing.T) {
 		os.Unsetenv(constant.DevopsAgentEnableNewConsole)
 
-		cmd, err := StartProcessCmd(nil, "cmd.exe", []string{"/c", "echo", "test"}, "", nil)
+		cmd, err := StartProcessCmd(nil, "cmd.exe", []string{"/c", "echo", "test"}, "", nil, logCB)
 		if err != nil {
 			t.Fatalf("StartProcessCmd failed: %v", err)
 		}
@@ -118,7 +123,7 @@ func TestStartProcessCmd_NewConsoleFlag(t *testing.T) {
 		defer os.Unsetenv(constant.DevopsAgentCloseFdInherit)
 		defer os.Unsetenv(constant.DevopsAgentEnableNewConsole)
 
-		cmd, err := StartProcessCmd(nil, "cmd.exe", []string{"/c", "echo", "test"}, "", nil)
+		cmd, err := StartProcessCmd(nil, "cmd.exe", []string{"/c", "echo", "test"}, "", nil, logCB)
 		if err != nil {
 			t.Fatalf("StartProcessCmd failed: %v", err)
 		}
@@ -137,7 +142,7 @@ func TestStartProcessCmd_NewConsoleFlag(t *testing.T) {
 func TestStartProcessCmd_WorkDir(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	cmd, err := StartProcessCmd(nil, "cmd.exe", []string{"/c", "cd"}, tmpDir, nil)
+	cmd, err := StartProcessCmd(nil, "cmd.exe", []string{"/c", "cd"}, tmpDir, nil, logCB)
 	if err != nil {
 		t.Fatalf("StartProcessCmd failed: %v", err)
 	}
@@ -155,7 +160,7 @@ func TestStartProcessCmd_EnvMap(t *testing.T) {
 		"TEST_VAR_2": "value2",
 	}
 
-	cmd, err := StartProcessCmd(nil, "cmd.exe", []string{"/c", "echo", "%TEST_VAR_1%"}, "", envMap)
+	cmd, err := StartProcessCmd(nil, "cmd.exe", []string{"/c", "echo", "%TEST_VAR_1%"}, "", envMap, logCB)
 	if err != nil {
 		t.Fatalf("StartProcessCmd failed: %v", err)
 	}
@@ -179,7 +184,7 @@ func TestStartProcessCmd_EnvMap(t *testing.T) {
 }
 
 func TestStartProcessCmd_ProcessRuns(t *testing.T) {
-	cmd, err := StartProcessCmd(nil, "cmd.exe", []string{"/c", "exit", "0"}, "", nil)
+	cmd, err := StartProcessCmd(nil, "cmd.exe", []string{"/c", "exit", "0"}, "", nil, logCB)
 	if err != nil {
 		t.Fatalf("StartProcessCmd failed: %v", err)
 	}
@@ -198,7 +203,7 @@ func TestStartProcessCmd_ProcessRuns(t *testing.T) {
 }
 
 func TestStartProcessCmd_InvalidCommand(t *testing.T) {
-	_, err := StartProcessCmd(nil, "nonexistent_command_12345.exe", nil, "", nil)
+	_, err := StartProcessCmd(nil, "nonexistent_command_12345.exe", nil, "", nil, logCB)
 	if err == nil {
 		t.Error("expected error for nonexistent command")
 	}

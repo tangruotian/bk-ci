@@ -336,6 +336,9 @@ const (
 
 // postLog 向后台上报日志
 func postLog(red bool, message string, buildInfo *api.ThirdPartyBuildInfo, logType api.LogType) {
+	if buildInfo == nil {
+		return
+	}
 	taskId := "startVM-" + buildInfo.VmSeqId
 
 	logMessage := &api.LogMessage{
