@@ -23,8 +23,8 @@ const (
 	targetJre8Dir = "/usr/local/jre8"
 )
 
-func newBuildDockerRunner(buildInfo *api.ThirdPartyBuildInfo) *dockercli.Runner {
-	return dockercli.NewRunnerWithEvent(systemutil.GetWorkDir(), func(entry dockercli.LogEntry) {
+func newBuildDockerRunner(buildInfo *api.ThirdPartyBuildInfo) (*dockercli.Runner, error) {
+	runner := dockercli.NewRunnerWithEvent(systemutil.GetWorkDir(), func(entry dockercli.LogEntry) {
 		msg := entry.Message
 		switch entry.Level {
 		case dockercli.LogLevelDebug:
@@ -38,6 +38,10 @@ func newBuildDockerRunner(buildInfo *api.ThirdPartyBuildInfo) *dockercli.Runner 
 		}
 		postLog(false, "[docker] "+msg, buildInfo, mapDockerRunnerLogLevel(entry.Level))
 	})
+	if err := configureBuildDockerRunner(runner, buildInfo.WinOptions); err != nil {
+		return nil, err
+	}
+	return runner, nil
 }
 
 func mapDockerRunnerLogLevel(level dockercli.LogLevel) api.LogType {

@@ -2,17 +2,59 @@ package dockercli
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/TencentBlueKing/bk-ci/agent/src/pkg/common/logs"
 	"github.com/TencentBlueKing/bk-ci/agent/src/pkg/constant"
 )
+
+func TestRunnerUsesInjectedCommandRunner(t *testing.T) {
+	runner := NewRunner(t.TempDir(), nil)
+	runner.binary = "docker"
+	calls := 0
+	runner.SetCommandRunner(func(cmd *exec.Cmd) error {
+		calls++
+		if cmd.Dir != runner.workDir {
+			t.Fatalf("Dir = %q, want %q", cmd.Dir, runner.workDir)
+		}
+		if calls == 1 {
+			input, err := io.ReadAll(cmd.Stdin)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(input) != "secret" {
+				t.Fatalf("stdin = %q", input)
+			}
+			if !strings.Contains(strings.Join(cmd.Args, " "), "login") {
+				t.Fatalf("login args = %v", cmd.Args)
+			}
+		} else if !strings.Contains(strings.Join(cmd.Args, " "), "pull") {
+			t.Fatalf("pull args = %v", cmd.Args)
+		}
+		_, _ = cmd.Stdout.Write([]byte("ok"))
+		return nil
+	})
+
+	output, err := runner.PullImage(context.Background(), "registry.example.com/image:tag", "user", "secret")
+	if err != nil {
+		t.Fatalf("PullImage failed: %v", err)
+	}
+	if calls != 2 {
+		t.Fatalf("calls = %d, want 2", calls)
+	}
+	if output != "ok" {
+		t.Fatalf("output = %q", output)
+	}
+}
 
 func TestRuntimeBinary(t *testing.T) {
 	logs.UNTestDebugInit()

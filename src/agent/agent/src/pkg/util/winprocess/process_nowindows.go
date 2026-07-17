@@ -59,6 +59,9 @@ func Start(_ Options) (*ProcessInfo, error) {
 func StartCommand(_ *exec.Cmd, _ Options) error {
 	return fmt.Errorf("winprocess is only supported on windows")
 }
+func RunCommand(_ *exec.Cmd, _ Options) error {
+	return fmt.Errorf("winprocess is only supported on windows")
+}
 func GetActiveSessionID() (uint32, error) {
 	return 0, fmt.Errorf("winprocess is only supported on windows")
 }

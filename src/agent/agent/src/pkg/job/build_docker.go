@@ -149,11 +149,15 @@ func doDockerJob(buildInfo *api.ThirdPartyBuildInfo) {
 		return
 	}
 	ctx := context.Background()
-	runner := newBuildDockerRunner(buildInfo)
+	runner, err := newBuildDockerRunner(buildInfo)
+	if err != nil {
+		logs.WithError(err).Error("DOCKER_JOB|configure docker process error")
+		dockerBuildFinish(buildInfo.ToFinish(false, err.Error(), api.DockerContainerRunErrorEnum))
+		return
+	}
 
 	imageName := strings.TrimSpace(dockerBuildInfo.Image)
 	imageStr := strings.TrimPrefix(strings.TrimPrefix(imageName, "http://"), "https://")
-	var err error
 
 	imageStrSub := strings.Split(imageStr, ":")
 	localExist := false

@@ -34,11 +34,14 @@ type LogEntry struct {
 
 type EventLogFunc func(LogEntry)
 
+type CommandRunner func(*exec.Cmd) error
+
 type Runner struct {
-	workDir string
-	binary  string
-	logf    LogFunc
-	eventf  EventLogFunc
+	workDir       string
+	binary        string
+	logf          LogFunc
+	eventf        EventLogFunc
+	commandRunner CommandRunner
 }
 
 type ContainerInfo struct {
@@ -79,6 +82,10 @@ func NewRunnerWithEvent(workDir string, eventf EventLogFunc) *Runner {
 
 func (r *Runner) Binary() string {
 	return r.binary
+}
+
+func (r *Runner) SetCommandRunner(commandRunner CommandRunner) {
+	r.commandRunner = commandRunner
 }
 
 func (r *Runner) ServerOS(ctx context.Context) (string, error) {
@@ -221,7 +228,11 @@ func (r *Runner) run(ctx context.Context, stdin []byte, args ...string) (string,
 		cmd.Stdin = bytes.NewReader(stdin)
 	}
 	var err error
-	err = cmd.Run()
+	if r.commandRunner == nil {
+		err = cmd.Run()
+	} else {
+		err = r.commandRunner(cmd)
+	}
 	stdout := stdoutBuf.String()
 	stderr := stderrBuf.String()
 	if strings.TrimSpace(stdout) != "" {

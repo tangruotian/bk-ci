@@ -2,7 +2,6 @@ package imagedebug
 
 import (
 	"net/http"
-	"os/exec"
 	"sync"
 
 	"github.com/TencentBlueKing/bk-ci/agent/src/pkg/dockercli"
@@ -49,15 +48,15 @@ type ExecRef struct {
 }
 
 type execSession struct {
-	conf *WebSocketConfig
-	cmd  *exec.Cmd
-	pty  PtyFile
+	conf     *WebSocketConfig
+	terminal Terminal
 }
 
-type PtyFile interface {
+type Terminal interface {
 	Close() error
 	Read([]byte) (int, error)
 	Write([]byte) (int, error)
+	Resize(columns, rows int16) error
 }
 
 // NewManager create a Manager object

@@ -255,6 +255,7 @@ type ImageDebug struct {
 	Image       string        `json:"image"`
 	Credential  Credential    `json:"credential"`
 	Options     DockerOptions `json:"options"`
+	WinOptions  *WinOptions   `json:"winOptions"`
 }
 
 type ImageDebugFinish struct {

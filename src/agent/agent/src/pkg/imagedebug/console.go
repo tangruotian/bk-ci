@@ -5,11 +5,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"os/exec"
 	"time"
 
-	"github.com/creack/pty"
 	"github.com/gorilla/websocket"
 )
 
@@ -227,19 +224,17 @@ func (m *manager) startExec(ws io.ReadWriter, conf *WebSocketConfig) error {
 	args = append(args, session.conf.ContainerID)
 	args = append(args, session.conf.Cmd...)
 
-	cmd := exec.Command(m.runner.Binary(), args...)
-
-	f, err := pty.Start(cmd)
+	columns, rows := int16(session.conf.Width), int16(session.conf.Height)
+	terminal, err := startTerminalCommand(m.runner.Binary(), args, m.conf.WinOptions, columns, rows)
 	if err != nil {
 		return err
 	}
 
 	m.Lock()
-	session.cmd = cmd
-	session.pty = f
+	session.terminal = terminal
 	m.Unlock()
 	defer func() {
-		f.Close()
+		_ = terminal.Close()
 		m.Lock()
 		delete(m.execSessions, conf.ExecID)
 		m.Unlock()
@@ -247,11 +242,11 @@ func (m *manager) startExec(ws io.ReadWriter, conf *WebSocketConfig) error {
 
 	errCh := make(chan error, 2)
 	go func() {
-		_, err := io.Copy(f, ws)
+		_, err := io.Copy(terminal, ws)
 		errCh <- err
 	}()
 	go func() {
-		_, err := io.Copy(ws, f)
+		_, err := io.Copy(ws, terminal)
 		errCh <- err
 	}()
 
@@ -267,19 +262,14 @@ func (m *manager) startExec(ws io.ReadWriter, conf *WebSocketConfig) error {
 func (m *manager) ResizeExec(w http.ResponseWriter, r *http.Request, conf *WebSocketConfig) {
 	imageDebugLogs.Debug(fmt.Sprintf("start resize for container exec_id %s", conf.ExecID))
 	session, err := m.getExecSession(conf)
-	if err != nil || session.pty == nil {
+	if err != nil || session.terminal == nil {
 		if err == nil {
 			err = fmt.Errorf("exec session not found")
 		}
 		ResponseJSON(w, http.StatusBadRequest, errMsg{err.Error()})
 		return
 	}
-	ptmx, ok := session.pty.(*os.File)
-	if !ok {
-		ResponseJSON(w, http.StatusBadRequest, errMsg{"exec session pty invalid"})
-		return
-	}
-	err = pty.Setsize(ptmx, &pty.Winsize{Rows: uint16(conf.Height), Cols: uint16(conf.Width)})
+	err = session.terminal.Resize(int16(conf.Width), int16(conf.Height))
 	if err != nil {
 		ResponseJSON(w, http.StatusBadRequest, errMsg{err.Error()})
 		return

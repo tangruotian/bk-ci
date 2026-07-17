@@ -1,5 +1,7 @@
 package imagedebug
 
+import "github.com/TencentBlueKing/bk-ci/agent/src/pkg/api"
+
 // CertConfig is configuration of Cert
 type CertConfig struct {
 	CAFile     string
@@ -22,6 +24,7 @@ type ConsoleProxyConfig struct {
 	IsAuth         bool
 	AuthToken      string
 	IsOneSeesion   bool
+	WinOptions     *api.WinOptions
 }
 
 // NewConsoleProxyConfig create a config object

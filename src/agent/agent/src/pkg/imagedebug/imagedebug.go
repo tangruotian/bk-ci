@@ -165,6 +165,9 @@ func CreateDebugContainer(
 	runner := dockercli.NewRunner(systemutil.GetWorkDir(), func(format string, args ...interface{}) {
 		imageDebugLogs.Infof(format, args...)
 	})
+	if err := configureImageDebugDockerRunner(runner, debugInfo.WinOptions); err != nil {
+		return err
+	}
 
 	// 先判断本地是否存在已经运行的容器
 	containerId, ok, err := checkLoclRunningContainer(ctx, runner, debugInfo.BuildId, debugInfo.VmSeqId)
@@ -405,6 +408,7 @@ func CreateExecServer(
 		IsAuth:         true,
 		AuthToken:      token,
 		IsOneSeesion:   true,
+		WinOptions:     debugInfo.WinOptions,
 	}
 
 	backend := NewManager(conf, debugDone)

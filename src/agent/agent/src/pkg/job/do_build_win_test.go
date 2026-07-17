@@ -9,6 +9,7 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/TencentBlueKing/bk-ci/agent/src/pkg/api"
 	"github.com/TencentBlueKing/bk-ci/agent/src/pkg/common/logs"
@@ -31,6 +32,40 @@ func init() {
 
 func logCB(s string, l logrus.Level) {
 	logs.Log(l, s)
+}
+
+func TestDockerProcessOptions(t *testing.T) {
+	tests := []struct {
+		name       string
+		winOptions *api.WinOptions
+		mode       winprocess.LaunchMode
+		enabled    bool
+		wantErr    bool
+		targetUser string
+		account    string
+		password   string
+	}{
+		{name: "default", winOptions: &api.WinOptions{BuildMod: string(api.WinOptionModDefault)}},
+		{name: "ui", winOptions: &api.WinOptions{BuildMod: string(api.WinOptionModUI), UserName: "builduser"}, mode: winprocess.LaunchInActiveSession, enabled: true, targetUser: "builduser"},
+		{name: "login", winOptions: &api.WinOptions{BuildMod: string(api.WinOptionModLogin), Credential: api.Credential{User: "user", Password: "secret"}}, mode: winprocess.LaunchWithPasswordSession0, enabled: true, account: "user", password: "secret"},
+		{name: "credential error", winOptions: &api.WinOptions{BuildMod: string(api.WinOptionModLogin), Credential: api.Credential{ErrMsg: "failed"}}, wantErr: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			options, enabled, err := dockerProcessOptions(test.winOptions)
+			if (err != nil) != test.wantErr {
+				t.Fatalf("err = %v, wantErr %v", err, test.wantErr)
+			}
+			if enabled != test.enabled {
+				t.Fatalf("enabled = %v, want %v", enabled, test.enabled)
+			}
+			if err == nil && enabled {
+				if options.Mode != test.mode || options.TargetUser != test.targetUser || options.Account != test.account || options.Password != test.password {
+					t.Fatalf("options = %+v", options)
+				}
+			}
+		})
+	}
 }
 
 func TestStartProcessCmd_UsesActiveSessionRecovery(t *testing.T) {
@@ -262,9 +297,12 @@ func TestInheritHandles_PipeLeaked(t *testing.T) {
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("cmd.Start failed: %v", err)
 	}
+	waited := false
 	defer func() {
-		cmd.Process.Kill()
-		cmd.Wait()
+		if !waited {
+			_ = cmd.Process.Kill()
+			_ = cmd.Wait()
+		}
 	}()
 
 	syscall.CloseHandle(writeHandle)
@@ -277,19 +315,16 @@ func TestInheritHandles_PipeLeaked(t *testing.T) {
 		done <- true
 	}()
 
+	timer := time.NewTimer(200 * time.Millisecond)
+	defer timer.Stop()
 	select {
 	case <-done:
 		t.Log("ReadFile returned immediately — child may not have inherited handle in this Go version")
-	case <-func() <-chan struct{} {
-		ch := make(chan struct{})
-		go func() {
-			cmd.Process.Kill()
-			cmd.Wait()
-			<-done
-			close(ch)
-		}()
-		return ch
-	}():
+	case <-timer.C:
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		waited = true
+		<-done
 		t.Log("ReadFile unblocked after killing child — confirms handle was inherited")
 	}
 }

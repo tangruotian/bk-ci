@@ -12,9 +12,11 @@
 package winprocess
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"unsafe"
@@ -143,6 +145,55 @@ func StartSession(options Options) (*ProcessInfo, error) {
 		cmdLine = makeCommandLine(options.Command, options.Args)
 	}
 	return startProcess(options, options.Command, cmdLine)
+}
+
+func RunCommand(cmd *exec.Cmd, options Options) error {
+	if cmd == nil {
+		return fmt.Errorf("cmd is nil")
+	}
+	if options.Mode == LaunchAsCurrent {
+		applyCommandOptions(cmd, options)
+		if len(options.ExtraEnv) > 0 {
+			baseEnv := cmd.Env
+			if baseEnv == nil {
+				baseEnv = os.Environ()
+			}
+			cmd.Env = mergeEnv(baseEnv, options.ExtraEnv)
+		}
+		return cmd.Run()
+	}
+
+	token, cleanup, err := tokenForOptions(options)
+	if err != nil {
+		return err
+	}
+	if token != 0 {
+		tokenToClose := token
+		cleanup = append([]func(){func() { tokenToClose.Close() }}, cleanup...)
+	}
+	defer runCleanup(cleanup)
+
+	env, envCleanup, err := environmentForOptions(token)
+	if err != nil {
+		return err
+	}
+	if envCleanup != nil {
+		defer envCleanup()
+	}
+	cmd.Env = mergeEnv(env, options.ExtraEnv)
+	if err := resolveCommandPathFromEnv(cmd, cmd.Env); err != nil {
+		return err
+	}
+
+	applyCommandOptions(cmd, options)
+	if cmd.SysProcAttr == nil {
+		cmd.SysProcAttr = &syscall.SysProcAttr{}
+	}
+	cmd.SysProcAttr.Token = syscall.Token(token)
+	if cmd.SysProcAttr.CreationFlags&CreateNoWindow == 0 {
+		cmd.SysProcAttr.CreationFlags |= CreateNoWindow
+	}
+	return cmd.Run()
 }
 
 func StartCommand(cmd *exec.Cmd, options Options) error {
@@ -406,6 +457,42 @@ func createProcess(token windows.Token, appPath, cmdLine, workDir string, env []
 		return nil, fmt.Errorf("CreateProcess: %w", callErr)
 	}
 	return &ProcessInfo{PID: pi.ProcessId, ProcessHandle: pi.Process, ThreadHandle: pi.Thread}, nil
+}
+
+func resolveCommandPathFromEnv(cmd *exec.Cmd, env []string) error {
+	if cmd == nil || cmd.Path == "" {
+		return nil
+	}
+	command := cmd.Path
+	if len(cmd.Args) > 0 && cmd.Args[0] != "" {
+		command = cmd.Args[0]
+	}
+	if filepath.IsAbs(command) || strings.ContainsAny(command, `\\/`) {
+		if cmd.Err != nil && !errors.Is(cmd.Err, exec.ErrNotFound) {
+			return cmd.Err
+		}
+		return nil
+	}
+	resolved, err := resolveExecutableFromEnv(command, env)
+	if err == nil {
+		cmd.Path = resolved
+		cmd.Err = nil
+		return nil
+	}
+	if cmd.Err != nil {
+		return cmd.Err
+	}
+	return err
+}
+
+func envValue(env []string, key string) string {
+	for i := len(env) - 1; i >= 0; i-- {
+		envKey, ok := splitEnvKey(env[i])
+		if ok && strings.EqualFold(envKey, key) {
+			return env[i][len(envKey)+1:]
+		}
+	}
+	return ""
 }
 
 func makeCommandLine(command string, args []string) string {
