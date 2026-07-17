@@ -12,6 +12,14 @@ func ready() bool {
 	return Logs != nil
 }
 
+func Log(level logrus.Level, args ...interface{}) {
+	if !ready() {
+		fmt.Fprintln(os.Stderr, args...)
+		return
+	}
+	Logs.Log(level, args...)
+}
+
 func Info(args ...interface{}) {
 	if !ready() {
 		fmt.Fprintln(os.Stderr, args...)

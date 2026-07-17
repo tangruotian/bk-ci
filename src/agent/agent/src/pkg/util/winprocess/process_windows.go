@@ -19,6 +19,8 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/TencentBlueKing/bk-ci/agent/src/pkg/common/logs"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/windows"
 )
 
@@ -72,7 +74,22 @@ type Options struct {
 	TargetUser               string
 	LoadProfile              bool
 	AllowIdentityEnvOverride bool
+	LogCallBack              func(msg string, level logrus.Level)
 }
+
+func (o *Options) log(msg string, level logrus.Level) {
+	if o.LogCallBack == nil {
+		logs.Log(level, o.formatMsg(msg))
+	} else {
+		o.LogCallBack(o.formatMsg(msg), level)
+	}
+}
+func (o *Options) formatMsg(msg string) string { return fmt.Sprintf("[WIN_PROCESS] %s", msg) }
+
+func (o *Options) Debug(msg string) { o.log(msg, logrus.DebugLevel) }
+func (o *Options) Info(msg string)  { o.log(msg, logrus.InfoLevel) }
+func (o *Options) Warn(msg string)  { o.log(msg, logrus.WarnLevel) }
+func (o *Options) Error(msg string) { o.log(msg, logrus.ErrorLevel) }
 
 type ProcessInfo struct {
 	PID           uint32
@@ -136,6 +153,7 @@ func StartCommand(cmd *exec.Cmd, options Options) error {
 	}
 	if options.Mode == LaunchAsCurrent {
 		applyCommandOptions(cmd, options)
+		options.Info("use Current user run worker process")
 		return cmd.Start()
 	}
 

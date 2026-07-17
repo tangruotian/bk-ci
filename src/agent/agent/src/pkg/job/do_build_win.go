@@ -37,6 +37,7 @@ import (
 	"syscall"
 
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 
 	"github.com/TencentBlueKing/bk-ci/agent/src/pkg/api"
 	"github.com/TencentBlueKing/bk-ci/agent/src/pkg/common/logs"
@@ -187,23 +188,27 @@ func StartProcessCmd(winOptions *api.WinOptions, command string, args []string, 
 	logs.Info("cmd.Args: ", cmd.Args)
 	logs.Info("cmd.workDir: ", cmd.Dir)
 
-	options := winprocess.Options{Mode: winprocess.LaunchAsCurrent}
+	options := winprocess.Options{Mode: winprocess.LaunchAsCurrent, LogCallBack: LogCallBack}
 	if winOptions != nil {
 		if winOptions.BuildMod == string(api.WinOptionModUI) {
 			options = winprocess.Options{
-				Mode:       winprocess.LaunchInActiveSession,
-				TargetUser: winOptions.UserName,
+				Mode:        winprocess.LaunchInActiveSession,
+				TargetUser:  winOptions.UserName,
+				LogCallBack: LogCallBack,
 			}
+			options.Info("use UI run worker process")
 		} else if winOptions.BuildMod == string(api.WinOptionModLogin) {
 			if winOptions.Credential.ErrMsg != "" {
 				logs.Error("WIN_JOBG|get cred error ", winOptions.Credential.ErrMsg)
 				return nil, errors.New("get win options cred error")
 			}
 			options = winprocess.Options{
-				Mode:     winprocess.LaunchWithPasswordSession0,
-				Account:  winOptions.Credential.User,
-				Password: winOptions.Credential.Password,
+				Mode:        winprocess.LaunchWithPasswordSession0,
+				Account:     winOptions.Credential.User,
+				Password:    winOptions.Credential.Password,
+				LogCallBack: LogCallBack,
 			}
+			options.Info("use password Login run worker process")
 		}
 	}
 
@@ -213,4 +218,8 @@ func StartProcessCmd(winOptions *api.WinOptions, command string, args []string, 
 	}
 
 	return cmd, nil
+}
+
+func LogCallBack(msg string, level logrus.Level) {
+
 }
