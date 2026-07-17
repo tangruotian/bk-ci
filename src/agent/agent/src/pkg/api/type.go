@@ -27,7 +27,10 @@
 
 package api
 
-import exitcode "github.com/TencentBlueKing/bk-ci/agent/src/pkg/exiterror"
+import (
+	exitcode "github.com/TencentBlueKing/bk-ci/agent/src/pkg/exiterror"
+	"github.com/jinzhu/copier"
+)
 
 type ThirdPartyAgentStartInfo struct {
 	HostName      string `json:"hostname"`
@@ -48,6 +51,15 @@ type ThirdPartyBuildInfo struct {
 	ExecuteCount    *int                       `json:"executeCount"`
 	ContainerHashId string                     `json:"containerHashId"`
 	WinOptions      *WinOptions                `json:"winOptions"`
+}
+
+// WorkerBuildInfo 给worker用的数据,防止敏感数据被打印
+func (t *ThirdPartyBuildInfo) WorkerBuildInfo() *ThirdPartyBuildInfo {
+	resBudil := &ThirdPartyBuildInfo{}
+	copier.Copy(&resBudil, &t)
+	resBudil.DockerBuildInfo = nil
+	resBudil.WinOptions = nil
+	return resBudil
 }
 
 type BuildJobType string
@@ -98,6 +110,10 @@ type WinOptions struct {
 	BuildMod   string     `json:"buildMod"`
 	UserName   string     `json:"username"`
 	Credential Credential `json:"credential"`
+}
+
+func (w *WinOptions) NoDefaultMod() bool {
+	return w.BuildMod == string(WinOptionModUI) || w.BuildMod == string(WinOptionModLogin)
 }
 
 type WinOptionMod string

@@ -298,12 +298,10 @@ func launchAgentInUserSession(agentPath, workDir string) bool {
 
 	cmdLine := fmt.Sprintf(`"%s"`, agentPath)
 
-	proc, err := winprocess.Start(winprocess.Options{
-		Mode:    winprocess.LaunchInActiveSession,
+	proc, err := winprocess.StartSession(winprocess.Options{
 		Command: agentPath,
 		CmdLine: cmdLine,
 		WorkDir: workDir,
-		Desktop: "winsta0\\default",
 	})
 	if err != nil {
 		logs.WithError(err).Warn("StartProcessAsUser failed, no active user session")

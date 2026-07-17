@@ -10,6 +10,7 @@ require (
 	github.com/gofrs/flock v0.8.1
 	github.com/gorilla/websocket v1.5.0
 	github.com/jaypipes/ghw v0.20.0
+	github.com/jinzhu/copier v0.4.0
 	github.com/kardianos/service v1.2.2
 	github.com/nicksnyder/go-i18n/v2 v2.2.1
 	github.com/pkg/errors v0.9.1

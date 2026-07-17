@@ -133,7 +133,8 @@ func (p *ProcessInfo) Wait() (uint32, error) {
 	return exitCode, nil
 }
 
-func Start(options Options) (*ProcessInfo, error) {
+func StartSession(options Options) (*ProcessInfo, error) {
+	options.Mode = LaunchInActiveSession
 	if options.Command == "" {
 		return nil, fmt.Errorf("command is required")
 	}

@@ -171,7 +171,7 @@ func writeStartBuildAgentScript(buildInfo *api.ThirdPartyBuildInfo, tmpDir strin
 			"-Dbuild.type=AGENT -DAGENT_LOG_PREFIX=%s -Xmx2g -Djava.io.tmpdir=%s -jar %s %s",
 			third_components.GetJavaLatest(), scriptFile, prepareScriptFile,
 			errorMsgFile,
-			agentLogPrefix, tmpDir, config.BuildAgentJarPath(), getEncodedBuildInfo(buildInfo)),
+			agentLogPrefix, tmpDir, config.BuildAgentJarPath(), getEncodedBuildInfo(buildInfo.WorkerBuildInfo())),
 	}
 	scriptContent := strings.Join(lines, "\n")
 

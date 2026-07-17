@@ -52,6 +52,7 @@ import (
 	"github.com/TencentBlueKing/bk-ci/agent/src/third_components"
 )
 
+// 方便测试
 var startWorkerCommand = winprocess.StartCommand
 
 func doBuild(
@@ -92,7 +93,7 @@ func doBuild(
 		"-Xmx2g", // #5806 兼容性问题，必须独立一行
 		"-jar",
 		config.BuildAgentJarPath(),
-		getEncodedBuildInfo(buildInfo)}
+		getEncodedBuildInfo(buildInfo.WorkerBuildInfo())}
 	cmd, err := StartProcessCmd(buildInfo.WinOptions, startCmd, args, workDir, goEnv, func(msg string, level logrus.Level) {
 		logCallBack(msg, level, buildInfo)
 	})
@@ -170,7 +171,9 @@ func StartProcessCmd(
 	sysProcAttr := &syscall.SysProcAttr{
 		NoInheritHandles: false,
 	}
-	if envs.FetchEnvAndCheck(constant.DevopsAgentCloseFdInherit, "true") {
+	// 非默认模式启动的worker不能继承句柄,因为agent和worker的用户环境已经不统一了
+	if envs.FetchEnvAndCheck(constant.DevopsAgentCloseFdInherit, "true") ||
+		(winOptions != nil && winOptions.NoDefaultMod()) {
 		sysProcAttr.NoInheritHandles = true
 		logs.Info("DEVOPS_AGENT_CLOSE_FD_INHERIT enabled: fd isolation for build process")
 	}
