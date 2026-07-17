@@ -13,12 +13,14 @@ package winprocess
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
 	"time"
 	"unsafe"
 
+	"github.com/TencentBlueKing/bk-ci/agent/src/pkg/constant"
 	"golang.org/x/sys/windows"
 )
 
@@ -33,7 +35,7 @@ var (
 	enumerateUserSessionsForRecovery = EnumerateUserSessions
 	runTsconToConsoleForRecovery     = runTsconToConsole
 	sessionRecoveryPollInterval      = time.Second
-	sessionRecoveryTimeout           = 15 * time.Second
+	sessionRecoveryTimeout           = time.Minute
 )
 
 const (
@@ -99,6 +101,9 @@ func RecoverActiveSessionID(targetUser string) (uint32, error) {
 	}
 	if session.State != WTSDisconnected {
 		return 0, fmt.Errorf("target session %d for user %s is not active or disconnected: state=%d", session.SessionID, session.AccountName(), session.State)
+	}
+	if !strings.EqualFold(strings.TrimSpace(os.Getenv(constant.DevopsAgentRecoverWTS)), "true") {
+		return 0, fmt.Errorf("target session %d for user %s is disconnected and WTS recovery is disabled", session.SessionID, session.AccountName())
 	}
 
 	if err := runTsconToConsoleForRecovery(session.SessionID); err != nil {

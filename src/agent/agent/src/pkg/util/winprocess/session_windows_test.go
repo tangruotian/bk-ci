@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/TencentBlueKing/bk-ci/agent/src/pkg/constant"
 )
 
 func TestSelectRecoverySession_TargetUserActive(t *testing.T) {
@@ -82,6 +84,8 @@ func TestSelectRecoverySession_NoCandidate(t *testing.T) {
 }
 
 func TestRecoverActiveSessionID_DisconnectedRunsTsconAndWaits(t *testing.T) {
+	t.Setenv(constant.DevopsAgentRecoverWTS, "true")
+
 	oldEnumerate := enumerateUserSessionsForRecovery
 	oldTscon := runTsconToConsoleForRecovery
 	oldPoll := sessionRecoveryPollInterval
@@ -120,5 +124,34 @@ func TestRecoverActiveSessionID_DisconnectedRunsTsconAndWaits(t *testing.T) {
 	}
 	if tsconSessionID != 5 {
 		t.Fatalf("tscon sessionID = %d, want 5", tsconSessionID)
+	}
+}
+
+func TestRecoverActiveSessionID_DisconnectedRecoveryDisabled(t *testing.T) {
+	t.Setenv(constant.DevopsAgentRecoverWTS, "false")
+
+	oldEnumerate := enumerateUserSessionsForRecovery
+	oldTscon := runTsconToConsoleForRecovery
+	defer func() {
+		enumerateUserSessionsForRecovery = oldEnumerate
+		runTsconToConsoleForRecovery = oldTscon
+	}()
+
+	enumerateUserSessionsForRecovery = func() ([]UserSession, error) {
+		return []UserSession{{SessionID: 5, State: WTSDisconnected, UserName: "builduser", DomainName: "DOMAIN"}}, nil
+	}
+
+	tsconCalled := false
+	runTsconToConsoleForRecovery = func(sessionID uint32) error {
+		tsconCalled = true
+		return nil
+	}
+
+	_, err := RecoverActiveSessionID("builduser")
+	if err == nil || !strings.Contains(err.Error(), "WTS recovery is disabled") {
+		t.Fatalf("err = %v, want WTS recovery disabled error", err)
+	}
+	if tsconCalled {
+		t.Fatal("tscon should not run when WTS recovery is disabled")
 	}
 }

@@ -60,4 +60,7 @@ const (
 	// 端口号持久化到 .agent.properties 的 devops.mcp.server.port，
 	// 支持通过后台心跳环境变量动态启停
 	DevopsAgentEnableMCP = "DEVOPS_AGENT_ENABLE_MCP"
+
+	// DevopsAgentRecoverWTS 如果设为 true，则允许将断开的 WTS 会话恢复到控制台
+	DevopsAgentRecoverWTS = "DEVOPS_RECOVER_WTS"
 )
