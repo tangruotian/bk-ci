@@ -1,5 +1,6 @@
 ﻿package com.tencent.devops.environment.service
 
+import com.tencent.devops.common.api.pojo.OS
 import jakarta.ws.rs.core.MediaType
 import jakarta.ws.rs.core.Response
 import jakarta.ws.rs.core.StreamingOutput
@@ -14,8 +15,11 @@ class CreateEnvService {
         return emptyList()
     }
 
-    fun getWorkspaceZoneName(projectId: String, workspaceId: String): String? {
-        return null
+    fun getWorkspaceInfo(projectId: String, workspaceId: String): WorkspaceInfo {
+        return WorkspaceInfo(
+            zoneName = null,
+            os = OS.WINDOWS
+        )
     }
 
     fun getWorkspaceDisplayName(userId: String, projectId: String, workspaceId: String?): String? {
@@ -35,3 +39,8 @@ class CreateEnvService {
             .build()
     }
 }
+
+data class WorkspaceInfo(
+    val zoneName: String?,
+    val os: OS
+)

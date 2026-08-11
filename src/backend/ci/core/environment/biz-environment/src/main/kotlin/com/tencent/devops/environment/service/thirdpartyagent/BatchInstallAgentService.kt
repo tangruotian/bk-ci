@@ -214,14 +214,14 @@ class BatchInstallAgentService @Autowired constructor(
     fun genCreateAgentId(
         userId: String,
         projectId: String,
-        workspaceName: String,
-        os: OS
+        workspaceName: String
     ): String {
+        val info = createEnvService.getWorkspaceInfo(projectId, workspaceName)
         val agentId = genNewAgent(
             projectId = projectId,
             userId = userId,
-            os = os,
-            zoneName = createEnvService.getWorkspaceZoneName(projectId, workspaceName),
+            os = info.os,
+            zoneName = info.zoneName,
             agentType = AgentType.CREATE,
             createWorkspaceName = workspaceName,
             agentProps = AgentProps.emptyBySource(AgentPropsSource.REMOTEDEV)
