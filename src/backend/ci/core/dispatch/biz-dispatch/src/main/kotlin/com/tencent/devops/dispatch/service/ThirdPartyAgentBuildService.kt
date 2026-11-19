@@ -1,5 +1,7 @@
 ﻿package com.tencent.devops.dispatch.service
 
+import com.tencent.devops.dispatch.pojo.thirdpartyagent.AgentBuildInfo
+import com.tencent.devops.common.api.util.timestamp
 import com.tencent.devops.common.api.pojo.Page
 import com.tencent.devops.common.api.util.PageUtil
 import com.tencent.devops.common.client.Client
@@ -596,6 +598,70 @@ class ThirdPartyAgentBuildService @Autowired constructor(
         return Page(pageNotNull, pageSizeNotNull, agentBuildCount, result)
     }
 
+    /**
+     * 单个构建机的任务列表（节点详情页、OpenAPI 共用），同构建机同 Job 只取最新一行，带状态时取该状态下的最新一行。
+     * @param realtimeActive 为 true 时，排队中/运行中的查询直接读源表，结果实时。OpenAPI 用于定时判断构建机是否空闲
+     */
+    fun listAgentBuilds(
+        agentId: String,
+        status: String?,
+        pipelineId: String?,
+        page: Int?,
+        pageSize: Int?,
+        realtimeActive: Boolean = false
+    ): Page<AgentBuildInfo> {
+        val pageNotNull = page ?: 0
+        val pageSizeNotNull = pageSize ?: PageUtil.MAX_PAGE_SIZE
+        val sqlLimit = PageUtil.convertPageSizeToSQLMAXLimit(pageNotNull, pageSizeNotNull)
+        val taskStatus = status?.let { PipelineTaskStatus.parse(it) }
+        val activeStatus = taskStatus?.takeIf { it == PipelineTaskStatus.QUEUE || it == PipelineTaskStatus.RUNNING }
+        val (count, records) = if (realtimeActive && activeStatus != null) {
+            listActiveBuilds(agentId, activeStatus.status, pipelineId, sqlLimit.offset, sqlLimit.limit)
+        } else {
+            listBuildsWithCount(agentId, taskStatus?.status, pipelineId, sqlLimit.offset, sqlLimit.limit)
+        }
+        return Page(pageNotNull, pageSizeNotNull, count, records.map { it.toAgentBuildInfo() })
+    }
+
+    /** 活跃行很少：一条 SQL 取出全部后在内存分页和计数，空闲的构建机直接返回空 */
+    private fun listActiveBuilds(
+        agentId: String,
+        status: Int,
+        pipelineId: String?,
+        offset: Int,
+        limit: Int
+    ): Pair<Long, List<TDispatchThirdpartyAgentBuildRecord>> {
+        val all = thirdPartyAgentBuildDao.listOpenApiBuilds(
+            dslContext, agentId, status, pipelineId, offset = 0, limit = OPENAPI_ACTIVE_MAX + 1
+        )
+        if (all.size <= OPENAPI_ACTIVE_MAX) {
+            return Pair(all.size.toLong(), all.drop(offset).take(limit))
+        }
+        // 活跃行异常多（例如残留大量未结束的记录）时退回 SQL 分页和计数，两条 SQL 仍只读这个 agent 该状态的行
+        logger.warn("listAgentBuilds|$agentId|$status|active builds exceed $OPENAPI_ACTIVE_MAX")
+        return Pair(
+            thirdPartyAgentBuildDao.countOpenApiBuilds(dslContext, agentId, status, pipelineId),
+            thirdPartyAgentBuildDao.listOpenApiBuilds(dslContext, agentId, status, pipelineId, offset, limit)
+        )
+    }
+
+    /** 多取一行判断是否还有下一页：首页不满一页或非空的末页时总数可直接算出，其余情况才计数 */
+    private fun listBuildsWithCount(
+        agentId: String,
+        status: Int?,
+        pipelineId: String?,
+        offset: Int,
+        limit: Int
+    ): Pair<Long, List<TDispatchThirdpartyAgentBuildRecord>> {
+        val rows = thirdPartyAgentBuildDao.listOpenApiBuilds(dslContext, agentId, status, pipelineId, offset, limit + 1)
+        val count = if (rows.size <= limit && (offset == 0 || rows.isNotEmpty())) {
+            offset.toLong() + rows.size
+        } else {
+            thirdPartyAgentBuildDao.countOpenApiBuilds(dslContext, agentId, status, pipelineId)
+        }
+        return Pair(count, rows.take(limit))
+    }
+
     fun fetchPipelineIdAndName(
         projectId: String,
         agentId: String?,
@@ -651,6 +717,23 @@ class ThirdPartyAgentBuildService @Autowired constructor(
     }
 
     companion object {
+        private const val OPENAPI_ACTIVE_MAX = 1000
+
+        private fun TDispatchThirdpartyAgentBuildRecord.toAgentBuildInfo() = AgentBuildInfo(
+            projectId = projectId,
+            agentId = agentId,
+            pipelineId = pipelineId,
+            pipelineName = pipelineName,
+            buildId = buildId,
+            buildNum = buildNum,
+            vmSeqId = vmSeqId,
+            taskName = taskName,
+            status = PipelineTaskStatus.toStatus(status).name,
+            createdTime = createdTime.timestamp(),
+            updatedTime = updatedTime.timestamp(),
+            workspace = workspace ?: ""
+        )
+
         private fun String.toStageNumb() =
             this.removePrefix("$KEY_STAGE-").toIntOrNull()?.let { it - 1 }?.toString()
 

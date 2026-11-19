@@ -31,6 +31,8 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.tencent.devops.common.api.exception.ErrorCodeException
 import com.tencent.devops.common.api.util.HashUtil
 import com.tencent.devops.common.api.util.SecurityUtil
+import com.tencent.devops.common.redis.RedisNegativeCache
+import com.tencent.devops.common.redis.RedisOperation
 import com.tencent.devops.environment.constant.EnvironmentMessageCode
 import com.tencent.devops.environment.dao.thirdpartyagent.ThirdPartyAgentDao
 import com.tencent.devops.environment.dao.thirdpartyagent.ThirdPartyAgentPipelineDao
@@ -48,6 +50,7 @@ import com.tencent.devops.model.environment.tables.records.TEnvironmentThirdpart
 import org.jooq.DSLContext
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 
 // 第三方构建机管道控制，比如命令和文件管道
@@ -56,19 +59,29 @@ class ThirdPartyAgentPipelineService @Autowired constructor(
     private val dslContext: DSLContext,
     private val thirdPartyAgentDao: ThirdPartyAgentDao,
     private val thirdPartyAgentPipelineDao: ThirdPartyAgentPipelineDao,
-    private val objectMapper: ObjectMapper
+    private val objectMapper: ObjectMapper,
+    redisOperation: RedisOperation,
+    @Value("\${environment.agent.pipelineEmptyCacheSeconds:20}") emptyCacheSeconds: Long
 ) {
+    // 管道的读取、下发及回队都由 environment 完成，标记使用本服务的 Redis。
+    private val emptyQueue = RedisNegativeCache(redisOperation, "environment:agent:emptyPipeline", emptyCacheSeconds)
 
     fun getPipelines(
         projectId: String,
         agentId: String,
-        secretKey: String
+        secretKey: String,
+        fromAsk: Boolean = false
     ): ThirdPartyAgentPipeline? {
         val id = HashUtil.decodeIdToLong(agentId)
+        val cacheId = id.toString()
+        // 聚合 ask 已发起心跳，空命中可省去 agent 和 PENDING 两次查询。独立入口继续逐次鉴权。
+        if (fromAsk && emptyQueue.isEmpty(cacheId)) return null
         val agentRecord = thirdPartyAgentDao.getAgent(dslContext, id) ?: return null
         authAgent(agentRecord, secretKey)
-        val pipelineRecord = thirdPartyAgentPipelineDao.getPipeline(dslContext, id, PipelineStatus.PENDING)
-            ?: return null
+        if (!fromAsk && emptyQueue.isEmpty(cacheId)) return null
+        val pipelineRecord = emptyQueue.query(cacheId) {
+            thirdPartyAgentPipelineDao.getPipeline(dslContext, id, PipelineStatus.PENDING)
+        } ?: return null
         return getPipeline(pipelineRecord)
     }
 
@@ -87,12 +100,15 @@ class ThirdPartyAgentPipelineService @Autowired constructor(
         }
         authAgent(agentRecord, secretKey)
         val seqId = HashUtil.decodeIdToLong(statusResponse.seqId)
-        return thirdPartyAgentPipelineDao.updateStatus(
+        val updated = thirdPartyAgentPipelineDao.updateStatus(
             dslContext,
             seqId,
+            id,
             statusResponse.status,
             statusResponse.response
         ) == 1
+        if (updated && statusResponse.status == PipelineStatus.PENDING) emptyQueue.invalidate(id.toString())
+        return updated
     }
 
     fun addPipeline(
@@ -112,6 +128,7 @@ class ThirdPartyAgentPipelineService @Autowired constructor(
             PipelineStatus.PENDING,
             objectMapper.writeValueAsString(create)
         )
+        emptyQueue.invalidate(agentRecord.id.toString())
         return HashUtil.encodeLongId(seqId)
     }
 

@@ -445,7 +445,10 @@ interface ServiceThirdPartyAgentResource {
         agentId: String,
         @Parameter(description = "秘钥", required = true)
         @HeaderParam(AUTH_HEADER_DEVOPS_AGENT_SECRET_KEY)
-        secretKey: String
+        secretKey: String,
+        @Parameter(description = "聚合 ask 已单独发起心跳")
+        @QueryParam("fromAsk")
+        fromAsk: Boolean? = null
     ): Result<ThirdPartyAgentPipeline?>
 
     @Operation(summary = "根据环境名称获取Agent列表,并返回环境ID")

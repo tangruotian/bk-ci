@@ -32,6 +32,7 @@ import com.tencent.devops.common.api.pojo.Result
 import com.tencent.devops.common.web.RestResource
 import com.tencent.devops.dispatch.api.ServiceAgentResource
 import com.tencent.devops.dispatch.pojo.thirdpartyagent.AgentBuildInfo
+import com.tencent.devops.dispatch.service.ThirdPartyAgentBuildService
 import com.tencent.devops.dispatch.service.ThirdPartyAgentDockerService
 import com.tencent.devops.dispatch.service.ThirdPartyAgentService
 import org.springframework.beans.factory.annotation.Autowired
@@ -40,7 +41,8 @@ import org.springframework.beans.factory.annotation.Autowired
 @Suppress("ALL")
 class ServiceAgentResourceImpl @Autowired constructor(
     val thirdPartyAgentService: ThirdPartyAgentService,
-    val thirdPartyAgentDockerService: ThirdPartyAgentDockerService
+    val thirdPartyAgentDockerService: ThirdPartyAgentDockerService,
+    val thirdPartyAgentBuildService: ThirdPartyAgentBuildService
 ) : ServiceAgentResource {
     @Deprecated("最新的构建表包含了executeCount的情况，但是这个方法是按老逻辑单BuildId返回的，所以后续尽可能不使用，只维持")
     override fun listAgentBuild(
@@ -48,14 +50,17 @@ class ServiceAgentResourceImpl @Autowired constructor(
         status: String?,
         pipelineId: String?,
         page: Int?,
-        pageSize: Int?
+        pageSize: Int?,
+        openApi: Boolean?
     ): Page<AgentBuildInfo> {
-        return thirdPartyAgentService.listAgentBuilds(
+        // OpenAPI 用于定时判断构建机是否空闲，排队中/运行中直接读源表保证实时；其余查询走构建记录展示表
+        return thirdPartyAgentBuildService.listAgentBuilds(
             agentId = agentId,
             status = status,
             pipelineId = pipelineId,
             page = page,
-            pageSize = pageSize
+            pageSize = pageSize,
+            realtimeActive = openApi == true
         )
     }
 

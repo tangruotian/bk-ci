@@ -102,6 +102,7 @@ class ThirdPartyAgentPipelineDao {
     fun updateStatus(
         dslContext: DSLContext,
         id: Long,
+        agentId: Long,
         status: PipelineStatus,
         response: String
     ): Int {
@@ -110,7 +111,7 @@ class ThirdPartyAgentPipelineDao {
                 .set(STATUS, status.status)
                 .set(UPDATED_TIME, LocalDateTime.now())
                 .set(RESPONSE, response)
-                .where(ID.eq(id))
+                .where(ID.eq(id)).and(AGENT_ID.eq(agentId))
                 .execute()
         }
     }

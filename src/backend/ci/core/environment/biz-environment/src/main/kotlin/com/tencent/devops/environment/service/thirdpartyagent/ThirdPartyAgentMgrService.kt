@@ -498,6 +498,9 @@ class ThirdPartyAgentMgrService @Autowired(required = false) constructor(
         }
     }
 
+    /**
+     * @param openApi 来自 OpenAPI 的查询，dispatch 走单独优化的 SQL，返回结构不变
+     */
     fun listAgentBuilds(
         userId: String,
         projectId: String,
@@ -505,7 +508,8 @@ class ThirdPartyAgentMgrService @Autowired(required = false) constructor(
         status: String?,
         pipelineId: String?,
         page: Int?,
-        pageSize: Int?
+        pageSize: Int?,
+        openApi: Boolean = false
     ): Page<AgentBuildDetail> {
         val nodeId = HashUtil.decodeIdToLong(nodeHashId)
         if (!environmentPermissionService.checkNodePermission(
@@ -534,7 +538,8 @@ class ThirdPartyAgentMgrService @Autowired(required = false) constructor(
             status = status,
             pipelineId = pipelineId,
             page = page,
-            pageSize = pageSize
+            pageSize = pageSize,
+            openApi = openApi
         )
 
         val heartbeatInfo = thirdPartyAgentHeartbeatUtils.getNewHeartbeat(

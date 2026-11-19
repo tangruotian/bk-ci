@@ -293,7 +293,9 @@ class ServiceThirdPartyAgentResourceImpl @Autowired constructor(
                 status = status,
                 pipelineId = pipelineId,
                 page = page,
-                pageSize = pageSize
+                pageSize = pageSize,
+                // 该接口只由 OpenAPI 调用（页面走 UserThirdPartyAgentResource），使用 dispatch 单独优化的查询
+                openApi = true
             )
         )
     }
@@ -311,8 +313,13 @@ class ServiceThirdPartyAgentResourceImpl @Autowired constructor(
         )
     }
 
-    override fun getPipelines(projectId: String, agentId: String, secretKey: String): Result<ThirdPartyAgentPipeline?> {
-        return Result(thirdPartyAgentPipelineService.getPipelines(projectId, agentId, secretKey))
+    override fun getPipelines(
+        projectId: String,
+        agentId: String,
+        secretKey: String,
+        fromAsk: Boolean?
+    ): Result<ThirdPartyAgentPipeline?> {
+        return Result(thirdPartyAgentPipelineService.getPipelines(projectId, agentId, secretKey, fromAsk == true))
     }
 
     override fun getAgentsByEnvNameWithId(

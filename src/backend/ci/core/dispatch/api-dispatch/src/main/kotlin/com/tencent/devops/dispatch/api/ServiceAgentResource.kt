@@ -66,7 +66,10 @@ interface ServiceAgentResource {
         page: Int?,
         @Parameter(description = "每页条数", required = false)
         @QueryParam("pageSize")
-        pageSize: Int?
+        pageSize: Int?,
+        @Parameter(description = "来自 OpenAPI 的查询，走单独优化的 SQL；返回结构不变，历史查询的总数可能有短暂缓存", required = false)
+        @QueryParam("openApi")
+        openApi: Boolean? = null
     ): Page<AgentBuildInfo>
 
     @Operation(summary = "批量获取构建机最近执行记录")

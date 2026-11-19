@@ -9,6 +9,7 @@ import com.tencent.devops.common.api.util.JsonUtil
 import com.tencent.devops.common.auth.api.AuthPermission
 import com.tencent.devops.common.client.Client
 import com.tencent.devops.common.pipeline.type.agent.ThirdPartyAgentDockerInfoDispatch
+import com.tencent.devops.common.redis.RedisNegativeCache
 import com.tencent.devops.common.redis.RedisOperation
 import com.tencent.devops.dispatch.dao.ThirdPartyAgentBuildDao
 import com.tencent.devops.dispatch.dao.ThirdPartyAgentDockerDebugDao
@@ -26,6 +27,7 @@ import com.tencent.devops.model.dispatch.tables.records.TDispatchThirdpartyAgent
 import org.jooq.DSLContext
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import jakarta.ws.rs.NotFoundException
 
@@ -36,13 +38,19 @@ class ThirdPartyAgentDockerService @Autowired constructor(
     private val dslContext: DSLContext,
     private val redisOperation: RedisOperation,
     private val thirdPartyAgentDockerDebugDao: ThirdPartyAgentDockerDebugDao,
-    private val thirdPartyAgentBuildDao: ThirdPartyAgentBuildDao
+    private val thirdPartyAgentBuildDao: ThirdPartyAgentBuildDao,
+    @Value("\${dispatch.agent.dockerDebugEmptyCacheSeconds:20}") emptyCacheSeconds: Long
 ) {
+    private val emptyQueue = RedisNegativeCache(redisOperation, "dispatch:agent:emptyDockerDebug", emptyCacheSeconds)
+
     fun startDockerDebug(
         projectId: String,
         agentId: String,
-        secretKey: String
+        secretKey: String,
+        fromAsk: Boolean = false
     ): AgentResult<ThirdPartyDockerDebugInfo?> {
+        // 聚合 ask 的心跳单独校验身份。空命中只跳过调试分支，有待领任务时仍走下面的完整校验。
+        if (fromAsk && emptyQueue.isEmpty(agentId)) return AgentResult(AgentStatus.IMPORT_OK, null)
         logger.debug("Start the docker debug agent($agentId) of project($projectId)")
         try {
             val agentResult = try {
@@ -79,12 +87,17 @@ class ThirdPartyAgentDockerService @Autowired constructor(
                 throw NotFoundException("Fail to get the agent")
             }
 
+            // 单独领取调试任务的老接口先校验身份和删除状态，再使用同一个空标记。
+            if (!fromAsk && emptyQueue.isEmpty(agentId)) return AgentResult(AgentStatus.IMPORT_OK, null)
             logger.debug("Third party agent($agentId) start up")
 
             val redisLock = ThirdPartyAgentDockerDebugLock(redisOperation, projectId, agentId)
             try {
                 redisLock.lock()
-                val debug = thirdPartyAgentDockerDebugDao.fetchOneQueueBuild(dslContext, agentId) ?: run {
+                // 仅在这条 SQL 查空时记空。取到任务后发现镜像信息缺失，也会返回 null，但队列中可能还有其他任务。
+                val debug = emptyQueue.query(agentId) {
+                    thirdPartyAgentDockerDebugDao.fetchOneQueueBuild(dslContext, agentId)
+                } ?: run {
                     logger.debug("There is not docker debug by agent($agentId) in queue")
                     return AgentResult(AgentStatus.IMPORT_OK, null)
                 }
@@ -270,7 +283,7 @@ class ThirdPartyAgentDockerService @Autowired constructor(
                     userId = userId,
                     thirdPartyAgentWorkspace = his.workspace,
                     dockerInfo = his.dockerInfo
-                )
+                ).also { emptyQueue.invalidate(his.agentId) }
             }
         } finally {
             redisLock.unlock()

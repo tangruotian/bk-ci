@@ -372,43 +372,72 @@ class ThirdPartyAgentBuildDao {
             }
     }
 
-    // 这个方法在有executeCount前就是按build维度的，需要聚合下
-    fun listAgentBuilds(
+    /**
+     * OpenAPI 专用的任务列表，外部用于判断 agent 是否空闲、展示正在运行的任务，与页面查询分开维护。
+     * 每个 (buildId, vmSeqId) 只取主键最大的一行（带状态时取该状态下的最新一行），按 ID 倒序。
+     * 构建记录展示表回填完成前使用，之后改查展示表，见 HistoryAgentBuildViewQuery。
+     * 只查返回需要的列，不读 DOCKER_INFO 等 JSON 大字段。索引按状态区分：
+     * - 排队中/运行中：强制走 IDX_AGENTID_STATUS_UPDATE，只扫这个 agent 的活跃行，空闲的 agent 直接返回空。
+     *   否则优化器可能为了省排序改选 idx_agent_id 倒序扫描，空闲 agent 找不到匹配行会扫完全部历史。
+     * - 查询失败记录且未指定流水线：失败可能很少甚至为零，按 agent + 状态定位，避免扫完全部成功记录才返回空页。
+     * - 查询成功记录或不过滤状态且未指定流水线：强制走 idx_agent_id(AGENT_ID, 隐含主键 ID)，倒序扫描凑够 offset + limit 行即停。
+     *   避免按 DONE 过滤时改选 IDX_AGENTID_STATUS_UPDATE，读出该状态的全部历史再 filesort。
+     * - 指定了流水线：由优化器在 idx_agent_id / idx_pipeline_id 之间选择。
+     */
+    fun listOpenApiBuilds(
         dslContext: DSLContext,
         agentId: String,
-        status: String?,
+        status: Int?,
         pipelineId: String?,
-        jobId: String?,
         offset: Int,
         limit: Int
     ): List<TDispatchThirdpartyAgentBuildRecord> {
         val t = TDispatchThirdpartyAgentBuild.T_DISPATCH_THIRDPARTY_AGENT_BUILD.`as`("t")
-        val statusValue = status?.let { PipelineTaskStatus.parse(it).status }
-        val conditions = mutableListOf<Condition>()
-        conditions.add(t.AGENT_ID.eq(agentId))
-        if (statusValue != null) {
-            conditions.add(t.STATUS.eq(statusValue))
+        val source = when {
+            status == PipelineTaskStatus.QUEUE.status || status == PipelineTaskStatus.RUNNING.status ->
+                t.forceIndex(IDX_AGENT_STATUS)
+            pipelineId != null -> t
+            status == PipelineTaskStatus.FAILURE.status -> t.forceIndex(IDX_AGENT_STATUS)
+            else -> t.forceIndex(IDX_AGENT)
         }
-        if (pipelineId != null) {
-            conditions.add(t.PIPELINE_ID.eq(pipelineId))
-        }
-        if (jobId != null) {
-            conditions.add(t.JOB_ID.eq(jobId))
-        }
-
-        // 每个 (buildId, vmSeqId) 只取主键最大的一条（最新插入 = 最新执行）。
-        // 不用 "ID IN (SELECT MAX(ID) ... GROUP BY ...)"：那种写法子查询和主查询各回表扫一遍 agent 全部历史，
-        // 再对整行做 filesort，历史多的 agent 每页都是秒级。
-        // PIPELINE_ID / JOB_ID 在同一 (buildId, vmSeqId) 内不变，NOT EXISTS 里只需补上 STATUS 即可保持原口径。
-        // 排序用 ID 而不是 CREATED_TIME：CREATED_TIME 只在插入时写入，与自增 ID 同序；按 ID 排序可直接沿
-        // idx_agent_id(AGENT_ID, 隐含主键 ID) 倒序扫描，凑够 offset + limit 行就停止，且同一秒内的记录分页稳定。
-        return dslContext.selectFrom(t)
-            .where(conditions)
-            .and(notExistsNewerRecord(dslContext, t, statusValue))
+        return dslContext.select(
+            t.ID, t.PROJECT_ID, t.AGENT_ID, t.PIPELINE_ID, t.PIPELINE_NAME, t.BUILD_ID, t.BUILD_NUM,
+            t.VM_SEQ_ID, t.TASK_NAME, t.STATUS, t.CREATED_TIME, t.UPDATED_TIME, t.WORKSPACE
+        ).from(source)
+            .where(openApiConditions(t, agentId, status, pipelineId))
+            .and(notExistsNewerRecord(dslContext, t, status))
             .orderBy(t.ID.desc())
             .limit(offset, limit)
-            .fetch()
+            .fetchInto(t)
     }
+
+    /**
+     * [listOpenApiBuilds] 的总数：每个 (buildId, vmSeqId) 计一次。
+     * 带状态时强制走 IDX_AGENTID_STATUS_UPDATE，只读这个 agent 该状态的行。
+     */
+    fun countOpenApiBuilds(
+        dslContext: DSLContext,
+        agentId: String,
+        status: Int?,
+        pipelineId: String?
+    ): Long {
+        val t = TDispatchThirdpartyAgentBuild.T_DISPATCH_THIRDPARTY_AGENT_BUILD.`as`("t")
+        return dslContext.select(DSL.countDistinct(t.BUILD_ID, t.VM_SEQ_ID))
+            .from(if (status != null) t.forceIndex(IDX_AGENT_STATUS) else t)
+            .where(openApiConditions(t, agentId, status, pipelineId))
+            .fetchOne(0, Long::class.java)!!
+    }
+
+    private fun openApiConditions(
+        t: TDispatchThirdpartyAgentBuild,
+        agentId: String,
+        status: Int?,
+        pipelineId: String?
+    ): List<Condition> = listOfNotNull(
+        t.AGENT_ID.eq(agentId),
+        status?.let { t.STATUS.eq(it) },
+        pipelineId?.let { t.PIPELINE_ID.eq(it) }
+    )
 
     fun listLatestBuildPipelines(
         dslContext: DSLContext,
@@ -449,34 +478,6 @@ class ThirdPartyAgentBuildDao {
                         workspace = it.value12() ?: ""
                     )
                 }
-        }
-    }
-
-    // 这个方法在有executeCount前就是按build维度的，需要聚合下
-    fun countAgentBuilds(
-        dslContext: DSLContext,
-        agentId: String,
-        status: String?,
-        pipelineId: String?,
-        jobId: String?
-    ): Long {
-        with(TDispatchThirdpartyAgentBuild.T_DISPATCH_THIRDPARTY_AGENT_BUILD) {
-            val conditions = mutableListOf<Condition>()
-            conditions.add(AGENT_ID.eq(agentId))
-            if (status != null) {
-                conditions.add(STATUS.eq(PipelineTaskStatus.parse(status).status))
-            }
-            if (pipelineId != null) {
-                conditions.add(PIPELINE_ID.eq(pipelineId))
-            }
-            if (jobId != null) {
-                conditions.add(JOB_ID.eq(jobId))
-            }
-
-            return dslContext.select(DSL.countDistinct(BUILD_ID, VM_SEQ_ID))
-                .from(this)
-                .where(conditions)
-                .fetchOne(0, Long::class.java)!!
         }
     }
 
@@ -1405,4 +1406,10 @@ class ThirdPartyAgentBuildDao {
         } else {
             DSL.noCondition()
         }
+
+    companion object {
+        // 强制索引的名称必须存在，否则 SQL 报错。领取任务的 fetchOneQueueBuild 同样强制走 IDX_AGENTID_STATUS_UPDATE
+        private const val IDX_AGENT_STATUS = "IDX_AGENTID_STATUS_UPDATE"
+        private const val IDX_AGENT = "idx_agent_id"
+    }
 }
