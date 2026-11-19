@@ -1,12 +1,12 @@
 ﻿package com.tencent.devops.dispatch.service
 
-import com.tencent.devops.dispatch.pojo.thirdpartyagent.AgentBuildInfo
-import com.tencent.devops.common.api.util.timestamp
 import com.tencent.devops.common.api.pojo.Page
 import com.tencent.devops.common.api.util.PageUtil
+import com.tencent.devops.common.api.util.timestamp
 import com.tencent.devops.common.client.Client
 import com.tencent.devops.dispatch.dao.ThirdPartyAgentBuildDao
 import com.tencent.devops.dispatch.pojo.enums.PipelineTaskStatus
+import com.tencent.devops.dispatch.pojo.thirdpartyagent.AgentBuildInfo
 import com.tencent.devops.dispatch.pojo.thirdpartyagent.AgentPipelineBuildTask
 import com.tencent.devops.dispatch.pojo.thirdpartyagent.AgentPipelineContainerBuild
 import com.tencent.devops.dispatch.pojo.thirdpartyagent.JobIdAndName
@@ -17,6 +17,12 @@ import com.tencent.devops.dispatch.pojo.thirdpartyagent.TPAPipelineBuildHistory
 import com.tencent.devops.dispatch.pojo.thirdpartyagent.TPAPipelineBuildView
 import com.tencent.devops.dispatch.pojo.thirdpartyagent.TPAPipelineReq
 import com.tencent.devops.dispatch.pojo.thirdpartyagent.TPAPipelineSearchReq
+import com.tencent.devops.dispatch.service.tpahistory.AgentBuildFilter
+import com.tencent.devops.dispatch.service.tpahistory.AgentBuildScope
+import com.tencent.devops.dispatch.service.tpahistory.AgentBuildViewQuery
+import com.tencent.devops.dispatch.service.tpahistory.HistoryAgentBuildViewQuery
+import com.tencent.devops.dispatch.service.tpahistory.LegacyAgentBuildViewQuery
+import com.tencent.devops.dispatch.service.tpahistory.TpaHistorySyncService
 import com.tencent.devops.environment.api.thirdpartyagent.ServiceThirdPartyAgentResource
 import com.tencent.devops.environment.pojo.thirdpartyagent.BatchFetchNodeInfoData
 import com.tencent.devops.model.dispatch.tables.records.TDispatchThirdpartyAgentBuildRecord
@@ -28,17 +34,22 @@ import org.jooq.DSLContext
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
-import java.time.Duration
-import java.time.LocalDateTime
 
-
+/**
+ * 节点/环境的构建记录展示。展示表回填完成后查询展示表（[HistoryAgentBuildViewQuery]），之前直接查源表。
+ */
 @Suppress("NestedBlockDepth")
 @Service
 class ThirdPartyAgentBuildService @Autowired constructor(
     private val dslContext: DSLContext,
     private val client: Client,
-    private val thirdPartyAgentBuildDao: ThirdPartyAgentBuildDao
+    private val thirdPartyAgentBuildDao: ThirdPartyAgentBuildDao,
+    private val legacyQuery: LegacyAgentBuildViewQuery,
+    private val historyQuery: HistoryAgentBuildViewQuery,
+    private val historySync: TpaHistorySyncService
 ) {
+    private fun viewQuery(): AgentBuildViewQuery = if (historySync.readable()) historyQuery else legacyQuery
+
     // 普通环境和节点支持跨项目查询，所有创作环境按 projectId 隔离
     fun fetchBuildPipelineView(
         userId: String,
@@ -49,6 +60,8 @@ class ThirdPartyAgentBuildService @Autowired constructor(
         if (data.agentId.isNullOrBlank() && data.envId == null) {
             return TPAPipelineBuildCountResp(0L, 0L, 0L, Page(0, 0, 0, emptyList()))
         }
+        val query = viewQuery()
+        val scope = AgentBuildScope(projectId, data.agentId, envId)
         val pageNotNull = data.page ?: 0
         val pageSizeNotNull = data.pageSize ?: 10
         val sqlLimit = if (pageSizeNotNull != -1) {
@@ -58,34 +71,22 @@ class ThirdPartyAgentBuildService @Autowired constructor(
         }
         val offset = sqlLimit?.offset ?: 0
         val limit = sqlLimit?.limit ?: 100
-        val jobId = if (data.view == TPAPipelineBuildView.JOB) data.jobId else null
-        val (pipelineCount, jobCount, buildCount) = thirdPartyAgentBuildDao.countAgentBuildPipelineJob(
-            dslContext = dslContext,
-            projectId = projectId,
-            agentId = data.agentId,
-            envId = envId,
+        val filter = AgentBuildFilter(
             startTime = data.startTime,
             endTime = data.endTime,
             pipelineId = data.pipelineId,
-            jobId = jobId,
+            jobId = data.jobId,
             creator = data.creator,
             status = data.taskStatusList
         )
+        // 只有 Job 视图的统计按 Job 过滤
+        val (pipelineCount, jobCount, buildCount) = query.countViews(
+            scope = scope,
+            filter = if (data.view == TPAPipelineBuildView.JOB) filter else filter.copy(jobId = null)
+        )
         val records = when (data.view) {
             TPAPipelineBuildView.PIPELINE -> {
-                val buildRecord = thirdPartyAgentBuildDao.fetchAgentBuildPipeline(
-                    dslContext = dslContext,
-                    projectId = projectId,
-                    agentId = data.agentId,
-                    envId = envId,
-                    limit = limit,
-                    offset = offset,
-                    startTime = data.startTime,
-                    endTime = data.endTime,
-                    pipelineId = data.pipelineId,
-                    creator = data.creator,
-                    status = data.taskStatusList
-                )
+                val buildRecord = query.listPipelines(scope, filter, offset, limit)
                 // 查询最近的构建的开始时间
                 val buildHistoryMap = client.get(ServiceBuildResource::class).batchFetchBuildRecordStatus(
                     data = BatchFetchBuildRecordData(buildIds = buildRecord.filter { !it.buildId.isNullOrBlank() }
@@ -97,20 +98,7 @@ class ThirdPartyAgentBuildService @Autowired constructor(
                 buildRecord
             }
 
-            TPAPipelineBuildView.JOB -> thirdPartyAgentBuildDao.fetchAgentBuildPipelineJob(
-                dslContext = dslContext,
-                projectId = projectId,
-                agentId = data.agentId,
-                envId = envId,
-                limit = limit,
-                offset = offset,
-                startTime = data.startTime,
-                endTime = data.endTime,
-                pipelineId = data.pipelineId,
-                jobId = data.jobId,
-                creator = data.creator,
-                status = data.taskStatusList
-            ).let { list ->
+            TPAPipelineBuildView.JOB -> query.listJobs(scope, filter, offset, limit).let { list ->
                 // 处理下stage序号计算
                 list.forEach { item ->
                     item.stageNumb = item.stageId?.toStageNumb() ?: item.stageId
@@ -119,27 +107,12 @@ class ThirdPartyAgentBuildService @Autowired constructor(
             }
 
             TPAPipelineBuildView.BUILD -> {
-                val buildRecord = thirdPartyAgentBuildDao.fetchAgentBuildPipelineBuild(
-                    dslContext = dslContext,
-                    projectId = projectId,
-                    agentId = data.agentId,
-                    envId = envId,
-                    limit = limit,
-                    offset = offset,
-                    startTime = data.startTime,
-                    endTime = data.endTime,
-                    pipelineId = data.pipelineId,
-                    creator = data.creator,
-                    status = data.taskStatusList
-                )
+                val buildRecord = query.listBuilds(scope, filter, offset, limit)
                 // 用来计算耗时
-                val buildRecordList = thirdPartyAgentBuildDao.fetchAgentBuildsByBuildId(
-                    dslContext = dslContext,
-                    projectId = projectId,
-                    agentId = data.agentId,
-                    envId = envId,
-                    buildIdList = buildRecord.filter { !it.buildId.isNullOrBlank() }.map { it.buildId!! }.toSet()
-                ).groupBy { it.buildId to it.executeCount }
+                val elapsedMap = query.buildElapsed(
+                    scope = scope,
+                    builds = buildRecord.filter { !it.buildId.isNullOrBlank() }.map { it.buildId!! to it.executeCount }
+                )
                 val buildHistoryMap = client.get(ServiceBuildResource::class).batchFetchBuildRecordStatus(
                     data = BatchFetchBuildRecordData(buildIds = buildRecord.filter { !it.buildId.isNullOrBlank() }
                         .map { it.buildId!! }, executeCount = null)
@@ -157,9 +130,7 @@ class ThirdPartyAgentBuildService @Autowired constructor(
                     }
 
                     record.buildHistory = bh?.let {
-                        val startTimeAndTotal = calcTotalElapsedSeconds(
-                            buildRecordList[Pair(record.buildId, record.executeCount)]
-                        )
+                        val startTimeAndTotal = elapsedMap[Pair(record.buildId!!, record.executeCount)]
                         TPAPipelineBuildHistory(
                             userId = it.startUser,
                             buildNum = record.buildNum,
@@ -191,53 +162,6 @@ class ThirdPartyAgentBuildService @Autowired constructor(
         )
     }
 
-    /**
-     * 计算一批构建记录(同一 build、executeCount 下的所有 job)的总耗时(秒)。
-     *
-     * 规则:
-     * 1. 未结束的记录(非 DONE/FAILURE,即仍在排队或运行中)没有真实结束时间,按 0 计(跳过);
-     * 2. 其余记录用 [CREATED_TIME, UPDATED_TIME] 作为区间,做并集合并去掉重叠部分,
-     *    再累加,得到实际墙钟总耗时(避免并行 job 被重复统计)。
-     *
-     * @return firstStartTime. total
-     */
-    fun calcTotalElapsedSeconds(records: List<TDispatchThirdpartyAgentBuildRecord>?): Pair<LocalDateTime, Long>? {
-        records ?: return null
-        val finished = setOf(PipelineTaskStatus.DONE.status, PipelineTaskStatus.FAILURE.status)
-
-        // 1. 过滤出已结束且时间合法的区间,按开始时间排序
-        val intervals = records.asSequence()
-            .filter { it.status in finished }
-            .mapNotNull { r ->
-                val start = r.createdTime ?: return@mapNotNull null
-                val end = r.updatedTime ?: return@mapNotNull null
-                if (end.isBefore(start)) null else start to end
-            }
-            .sortedBy { it.first }
-            .toList()
-
-        if (intervals.isEmpty()) return null
-
-        // 2. 合并重叠/相邻区间,累加各段长度
-        var total = 0L
-        var curStart = intervals[0].first
-        var curEnd = intervals[0].second
-        for (i in 1 until intervals.size) {
-            val (s, e) = intervals[i]
-            if (!s.isAfter(curEnd)) {
-                // 与当前段重叠或相接,向后扩展
-                if (e.isAfter(curEnd)) curEnd = e
-            } else {
-                // 出现空档,结算当前段,开启新段
-                total += Duration.between(curStart, curEnd).seconds
-                curStart = s
-                curEnd = e
-            }
-        }
-        total += Duration.between(curStart, curEnd).seconds
-        return Pair(intervals.first().first, total)
-    }
-
     @Deprecated("fetchBuildPipelineView")
     fun fetchBuildPipeline(
         projectId: String,
@@ -255,6 +179,8 @@ class ThirdPartyAgentBuildService @Autowired constructor(
         if (agentId.isNullOrBlank() && envId == null) {
             return TPAPipelineBuildCountResp(0L, 0L, 0L, Page(0, 0, 0, emptyList()))
         }
+        val query = viewQuery()
+        val scope = AgentBuildScope(projectId, agentId, envId)
         val pageNotNull = page ?: 0
         val pageSizeNotNull = pageSize ?: 10
         val sqlLimit = if (pageSizeNotNull != -1) {
@@ -264,11 +190,7 @@ class ThirdPartyAgentBuildService @Autowired constructor(
         }
         val offset = sqlLimit?.offset ?: 0
         val limit = sqlLimit?.limit ?: 100
-        val (pipelineCount, jobCount, buildCount) = thirdPartyAgentBuildDao.countAgentBuildPipelineJob(
-            dslContext = dslContext,
-            projectId = projectId,
-            agentId = agentId,
-            envId = envId,
+        val filter = AgentBuildFilter(
             startTime = startTime,
             endTime = endTime,
             pipelineId = pipelineId,
@@ -276,6 +198,7 @@ class ThirdPartyAgentBuildService @Autowired constructor(
             creator = creator,
             status = status?.let { listOf(it) }
         )
+        val (pipelineCount, jobCount, buildCount) = query.countViews(scope, filter)
         return TPAPipelineBuildCountResp(
             pipelineCount = pipelineCount,
             jobCount = jobCount,
@@ -284,20 +207,7 @@ class ThirdPartyAgentBuildService @Autowired constructor(
                 page = pageNotNull,
                 pageSize = pageSizeNotNull,
                 count = jobCount,
-                records = thirdPartyAgentBuildDao.fetchAgentBuildPipelineJob(
-                    dslContext = dslContext,
-                    projectId = projectId,
-                    agentId = agentId,
-                    envId = envId,
-                    limit = limit,
-                    offset = offset,
-                    startTime = startTime,
-                    endTime = endTime,
-                    pipelineId = pipelineId,
-                    jobId = jobId,
-                    creator = creator,
-                    status = status?.let { listOf(it) }
-                ).let { list ->
+                records = query.listJobs(scope, filter, offset, limit).let { list ->
                     // 处理下stage序号计算
                     list.forEach { item ->
                         item.stageNumb = item.stageId?.toStageNumb() ?: item.stageId
@@ -316,46 +226,27 @@ class ThirdPartyAgentBuildService @Autowired constructor(
     ): Page<AgentPipelineContainerBuild> {
         val pageNotNull = data.page ?: 0
         val pageSizeNotNull = data.pageSize ?: PageUtil.MAX_PAGE_SIZE
+        if (data.agentId.isNullOrBlank() && envId == null) {
+            return Page(pageNotNull, pageSizeNotNull, 0, emptyList())
+        }
         val sqlLimit = PageUtil.convertPageSizeToSQLMAXLimit(pageNotNull, pageSizeNotNull)
-        val offset = sqlLimit.offset
-        val limit = sqlLimit.limit
-
-        val agentBuildCount = thirdPartyAgentBuildDao.countAgentBuildsByJob(
-            dslContext = dslContext,
-            projectId = projectId,
-            agentId = data.agentId,
-            envId = envId,
-            pipelineId = data.pipelineId,
-            jobId = data.jobId,
+        val query = viewQuery()
+        val scope = AgentBuildScope(projectId, data.agentId, envId)
+        val filter = AgentBuildFilter(
             startTime = data.startTime,
-            endTime = data.endTime
-        )
-        val agentBuilds = thirdPartyAgentBuildDao.listAgentBuildsByJob(
-            dslContext = dslContext,
-            projectId = projectId,
-            agentId = data.agentId,
-            envId = envId,
+            endTime = data.endTime,
             pipelineId = data.pipelineId,
-            jobId = data.jobId,
-            offset = offset,
-            limit = limit,
-            startTime = data.startTime,
-            endTime = data.endTime
+            jobId = data.jobId
         )
+        val agentBuildCount = query.countJobRuns(scope, filter)
+        val agentBuilds = query.listJobRuns(scope, filter, sqlLimit.offset, sqlLimit.limit)
         // 获取展示信息，不走鉴权，即使看到了跳转也没权限
         val builds = client.get(ServiceBuildResource::class).batchFetchBuildRecordStatus(
             data = BatchFetchBuildRecordData(buildIds = agentBuilds.map { it.buildId }, executeCount = null)
         ).data?.groupBy { it.buildId }
         val result = mutableListOf<AgentPipelineContainerBuild>()
         // 环境详情需要返回节点信息
-        val nodeInfoMap = if (envId != null) {
-            client.get(ServiceThirdPartyAgentResource::class).batchFetchNodeInfo(
-                projectId = projectId,
-                data = BatchFetchNodeInfoData(agentBuilds.map { it.agentId }.toSet())
-            ).data?.associateBy { it.agentHashId }
-        } else {
-            null
-        }
+        val nodeInfoMap = fetchNodeInfo(projectId, envId, agentBuilds)
         agentBuilds.forEach { record ->
             val buildWithExecuteCount = builds?.get(record.buildId) ?: return@forEach
             val build = buildWithExecuteCount.let { list ->
@@ -380,13 +271,7 @@ class ThirdPartyAgentBuildService @Autowired constructor(
                     buildNum = record.buildNum ?: 0,
                     creator = record.startUser,
                     tasks = null,
-                    nodeInfo = nodeInfoMap?.get(record.agentId)?.let {
-                        NodeInfo(
-                            agentHashId = it.agentHashId,
-                            nodeHashId = it.nodeHashId,
-                            displayName = it.nodeName
-                        )
-                    }
+                    nodeInfo = nodeInfoMap?.get(record.agentId)
                 )
             )
         }
@@ -402,60 +287,32 @@ class ThirdPartyAgentBuildService @Autowired constructor(
     ): Page<AgentPipelineContainerBuild> {
         val pageNotNull = data.page ?: 0
         val pageSizeNotNull = data.pageSize ?: PageUtil.MAX_PAGE_SIZE
+        if (data.agentId.isNullOrBlank() && envId == null) {
+            return Page(pageNotNull, pageSizeNotNull, 0, emptyList())
+        }
         val sqlLimit = PageUtil.convertPageSizeToSQLMAXLimit(pageNotNull, pageSizeNotNull)
-        val offset = sqlLimit.offset
-        val limit = sqlLimit.limit
-
-        val agentBuildCount = thirdPartyAgentBuildDao.countAgentBuildGroupsByPipeline(
-            dslContext = dslContext,
-            projectId = projectId,
-            agentId = data.agentId,
-            envId = envId,
-            pipelineId = pipelineId,
-            status = data.taskStatusList,
-            startTime = data.startTime,
-            endTime = data.endTime
-        )
+        val query = viewQuery()
+        val scope = AgentBuildScope(projectId, data.agentId, envId)
+        val filter = AgentBuildFilter(startTime = data.startTime, endTime = data.endTime, status = data.taskStatusList)
+        val agentBuildCount = query.countPipelineBuilds(scope, pipelineId, filter)
         // buildId维度的
-        val pipelineBuilds = thirdPartyAgentBuildDao.listAgentBuildGroupsByPipeline(
-            dslContext = dslContext,
-            projectId = projectId,
-            agentId = data.agentId,
-            envId = envId,
-            pipelineId = pipelineId,
-            offset = offset,
-            limit = limit,
-            status = data.taskStatusList,
-            startTime = data.startTime,
-            endTime = data.endTime
-        ).toHashSet()
+        val pipelineBuilds = query.listPipelineBuilds(scope, pipelineId, filter, sqlLimit.offset, sqlLimit.limit)
+            .toHashSet()
         if (pipelineBuilds.isEmpty()) {
             return Page(pageNotNull, pageSizeNotNull, agentBuildCount, emptyList())
         }
         // 带上job维度的
-        val agentBuildRecords = thirdPartyAgentBuildDao.fetchAgentBuildsByBuildId(
-            dslContext = dslContext,
-            projectId = projectId,
-            agentId = data.agentId,
-            envId = envId,
-            buildIdList = pipelineBuilds.map { it.first }.toSet()
-        ).sortedByDescending { it.id }
+        val agentBuildRecords = query.listBuildJobs(scope, pipelineBuilds.map { it.first }.toSet())
+            .sortedByDescending { it.id }
         // 这里还要再用pipeline的数据筛一遍，防止过滤不对
-        val agentBuilds = agentBuildRecords.filter { (it.buildId to it.executeCount) in pipelineBuilds }
+        val agentBuilds = agentBuildRecords.filter { Pair(it.buildId, it.executeCount) in pipelineBuilds }
         // 获取展示信息，不走鉴权，即使看到了跳转也没权限
         val builds = client.get(ServiceBuildResource::class).batchFetchBuildRecordStatus(
             data = BatchFetchBuildRecordData(buildIds = agentBuilds.map { it.buildId }, executeCount = null)
         ).data?.groupBy { it.buildId }
         val result = mutableListOf<AgentPipelineContainerBuild>()
         // 环境详情需要返回节点信息
-        val nodeInfoMap = if (envId != null) {
-            client.get(ServiceThirdPartyAgentResource::class).batchFetchNodeInfo(
-                projectId = projectId,
-                data = BatchFetchNodeInfoData(agentBuilds.map { it.agentId }.toSet())
-            ).data?.associateBy { it.agentHashId }
-        } else {
-            null
-        }
+        val nodeInfoMap = fetchNodeInfo(projectId, envId, agentBuilds)
         agentBuilds.groupBy { it.buildId }.forEach { (buildId, buildRecords) ->
             buildRecords.groupBy { it.executeCount }.forEach buildRecords@{ (executeCount, records) ->
                 val buildWithExecuteCount = builds?.get(buildId) ?: return@forEach
@@ -489,13 +346,7 @@ class ThirdPartyAgentBuildService @Autowired constructor(
                                 stageNumb = it.stageId?.toStageNumb() ?: it.stageId
                             )
                         },
-                        nodeInfo = nodeInfoMap?.get(record.agentId)?.let {
-                            NodeInfo(
-                                agentHashId = it.agentHashId,
-                                nodeHashId = it.nodeHashId,
-                                displayName = it.nodeName
-                            )
-                        }
+                        nodeInfo = nodeInfoMap?.get(record.agentId)
                     )
                 )
             }
@@ -514,33 +365,11 @@ class ThirdPartyAgentBuildService @Autowired constructor(
         val pageNotNull = data.page ?: 0
         val pageSizeNotNull = data.pageSize ?: PageUtil.MAX_PAGE_SIZE
         val sqlLimit = PageUtil.convertPageSizeToSQLMAXLimit(pageNotNull, pageSizeNotNull)
-        val offset = sqlLimit.offset
-        val limit = sqlLimit.limit
-
-        val agentBuildCount = thirdPartyAgentBuildDao.countAgentBuildGroupsByBuild(
-            dslContext = dslContext,
-            projectId = projectId,
-            agentId = data.agentId,
-            envId = envId,
-            buildId = buildId,
-            executeCount = executeCount,
-            status = data.taskStatusList,
-            startTime = data.startTime,
-            endTime = data.endTime
-        )
-        val agentBuilds = thirdPartyAgentBuildDao.listAgentBuildGroupsByBuild(
-            dslContext = dslContext,
-            projectId = projectId,
-            agentId = data.agentId,
-            envId = envId,
-            buildId = buildId,
-            executeCount = executeCount,
-            offset = offset,
-            limit = limit,
-            status = data.taskStatusList,
-            startTime = data.startTime,
-            endTime = data.endTime
-        )
+        val query = viewQuery()
+        val scope = AgentBuildScope(projectId, data.agentId, envId)
+        val filter = AgentBuildFilter(startTime = data.startTime, endTime = data.endTime, status = data.taskStatusList)
+        val agentBuildCount = query.countBuildRuns(scope, buildId, executeCount, filter)
+        val agentBuilds = query.listBuildRuns(scope, buildId, executeCount, filter, sqlLimit.offset, sqlLimit.limit)
         if (agentBuilds.isEmpty()) {
             return Page(pageNotNull, pageSizeNotNull, agentBuildCount, emptyList())
         }
@@ -553,14 +382,7 @@ class ThirdPartyAgentBuildService @Autowired constructor(
             )
         ).data?.associateBy { it.containerId }
         // 环境详情需要返回节点信息
-        val nodeInfoMap = if (envId != null) {
-            client.get(ServiceThirdPartyAgentResource::class).batchFetchNodeInfo(
-                projectId = projectId,
-                data = BatchFetchNodeInfoData(agentBuilds.map { it.agentId }.toSet())
-            ).data?.associateBy { it.agentHashId }
-        } else {
-            null
-        }
+        val nodeInfoMap = fetchNodeInfo(projectId, envId, agentBuilds)
         val result = mutableListOf<AgentPipelineContainerBuild>()
         agentBuilds.forEach { record ->
             val build = builds?.get(record.vmSeqId.toString()) ?: return@forEach
@@ -584,18 +406,26 @@ class ThirdPartyAgentBuildService @Autowired constructor(
                             stageNumb = record.stageId?.toStageNumb() ?: record.stageId
                         )
                     ),
-                    nodeInfo = nodeInfoMap?.get(record.agentId)?.let {
-                        NodeInfo(
-                            agentHashId = it.agentHashId,
-                            nodeHashId = it.nodeHashId,
-                            displayName = it.nodeName
-                        )
-                    }
+                    nodeInfo = nodeInfoMap?.get(record.agentId)
                 )
             )
         }
 
         return Page(pageNotNull, pageSizeNotNull, agentBuildCount, result)
+    }
+
+    private fun fetchNodeInfo(
+        projectId: String,
+        envId: Long?,
+        records: List<TDispatchThirdpartyAgentBuildRecord>
+    ): Map<String, NodeInfo>? {
+        if (envId == null) return null
+        return client.get(ServiceThirdPartyAgentResource::class).batchFetchNodeInfo(
+            projectId = projectId,
+            data = BatchFetchNodeInfoData(records.map { it.agentId }.toSet())
+        ).data?.associate {
+            it.agentHashId to NodeInfo(agentHashId = it.agentHashId, nodeHashId = it.nodeHashId, displayName = it.nodeName)
+        }
     }
 
     /**
@@ -618,7 +448,7 @@ class ThirdPartyAgentBuildService @Autowired constructor(
         val (count, records) = if (realtimeActive && activeStatus != null) {
             listActiveBuilds(agentId, activeStatus.status, pipelineId, sqlLimit.offset, sqlLimit.limit)
         } else {
-            listBuildsWithCount(agentId, taskStatus?.status, pipelineId, sqlLimit.offset, sqlLimit.limit)
+            listBuildsWithCount(viewQuery(), agentId, taskStatus?.status, pipelineId, sqlLimit.offset, sqlLimit.limit)
         }
         return Page(pageNotNull, pageSizeNotNull, count, records.map { it.toAgentBuildInfo() })
     }
@@ -647,17 +477,18 @@ class ThirdPartyAgentBuildService @Autowired constructor(
 
     /** 多取一行判断是否还有下一页：首页不满一页或非空的末页时总数可直接算出，其余情况才计数 */
     private fun listBuildsWithCount(
+        query: AgentBuildViewQuery,
         agentId: String,
         status: Int?,
         pipelineId: String?,
         offset: Int,
         limit: Int
     ): Pair<Long, List<TDispatchThirdpartyAgentBuildRecord>> {
-        val rows = thirdPartyAgentBuildDao.listOpenApiBuilds(dslContext, agentId, status, pipelineId, offset, limit + 1)
+        val rows = query.listAgentBuilds(agentId, status, pipelineId, offset, limit + 1)
         val count = if (rows.size <= limit && (offset == 0 || rows.isNotEmpty())) {
             offset.toLong() + rows.size
         } else {
-            thirdPartyAgentBuildDao.countOpenApiBuilds(dslContext, agentId, status, pipelineId)
+            query.countAgentBuilds(agentId, status, pipelineId)
         }
         return Pair(count, rows.take(limit))
     }
@@ -671,13 +502,8 @@ class ThirdPartyAgentBuildService @Autowired constructor(
         if (agentId.isNullOrBlank() && envId == null) {
             return emptyList()
         }
-        return thirdPartyAgentBuildDao.fetchPipelineIdAndName(
-            dslContext = dslContext,
-            projectId = projectId,
-            agentId = agentId,
-            envId = envId,
-            pipelineName = pipelineName
-        ).map { PipelineIdAndName(it.first, it.second) }
+        return viewQuery().pipelineOptions(AgentBuildScope(projectId, agentId, envId), pipelineName.orNullIfBlank())
+            .map { PipelineIdAndName(it.first, it.second) }
     }
 
     fun fetchJobIdAndName(
@@ -689,13 +515,8 @@ class ThirdPartyAgentBuildService @Autowired constructor(
         if (agentId.isNullOrBlank() && envId == null) {
             return emptyList()
         }
-        return thirdPartyAgentBuildDao.fetchJobIdAndName(
-            dslContext = dslContext,
-            projectId = projectId,
-            agentId = agentId,
-            envId = envId,
-            jobName = jobName
-        ).map { JobIdAndName(it.first, it.second) }
+        return viewQuery().jobOptions(AgentBuildScope(projectId, agentId, envId), jobName.orNullIfBlank())
+            .map { JobIdAndName(it.first, it.second) }
     }
 
     fun fetchCreator(
@@ -707,17 +528,17 @@ class ThirdPartyAgentBuildService @Autowired constructor(
         if (agentId.isNullOrBlank() && envId == null) {
             return emptyList()
         }
-        return thirdPartyAgentBuildDao.fetchCreator(
-            dslContext = dslContext,
-            projectId = projectId,
-            agentId = agentId,
-            envId = envId,
-            creator = creator
-        )
+        return viewQuery().creatorOptions(AgentBuildScope(projectId, agentId, envId), creator.orNullIfBlank())
     }
 
     companion object {
+        // 查询排队中/运行中任务时一次取出的上限，正常 agent 的活跃任务远少于此
         private const val OPENAPI_ACTIVE_MAX = 1000
+
+        private fun String.toStageNumb() =
+            this.removePrefix("$KEY_STAGE-").toIntOrNull()?.let { it - 1 }?.toString()
+
+        private fun String?.orNullIfBlank() = this?.takeIf { it.isNotBlank() }
 
         private fun TDispatchThirdpartyAgentBuildRecord.toAgentBuildInfo() = AgentBuildInfo(
             projectId = projectId,
@@ -733,9 +554,6 @@ class ThirdPartyAgentBuildService @Autowired constructor(
             updatedTime = updatedTime.timestamp(),
             workspace = workspace ?: ""
         )
-
-        private fun String.toStageNumb() =
-            this.removePrefix("$KEY_STAGE-").toIntOrNull()?.let { it - 1 }?.toString()
 
         private val logger = LoggerFactory.getLogger(ThirdPartyAgentBuildService::class.java)
     }

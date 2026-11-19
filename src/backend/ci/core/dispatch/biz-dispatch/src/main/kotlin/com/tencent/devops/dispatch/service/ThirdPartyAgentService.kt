@@ -62,6 +62,7 @@ import com.tencent.devops.dispatch.pojo.thirdpartyagent.ThirdPartyAskResp
 import com.tencent.devops.dispatch.pojo.thirdpartyagent.ThirdPartyBuildDockerInfo
 import com.tencent.devops.dispatch.pojo.thirdpartyagent.ThirdPartyBuildInfo
 import com.tencent.devops.dispatch.pojo.thirdpartyagent.ThirdPartyBuildWithStatus
+import com.tencent.devops.dispatch.service.tpahistory.TpaHistoryChanges
 import com.tencent.devops.dispatch.utils.TPACommonUtil
 import com.tencent.devops.dispatch.utils.ThirdPartyAgentLock
 import com.tencent.devops.dispatch.utils.ThirdPartyAgentUtils
@@ -148,6 +149,7 @@ class ThirdPartyAgentService @Autowired constructor(
                 )
                 // add 也处理重试和改派。以这次写入的目标 agent 为准，等 QUEUE 记录写入后再清除它的空标记。
                 agentAskCache.invalidateBuild(agent.agentId)
+                TpaHistoryChanges.mark(buildId)
             } catch (e: DeadlockLoserDataAccessException) {
                 logger.warn("Fail to add the third party agent build of ($buildId|$vmSeqId|${agent.agentId}")
                 if (retryCount <= QUEUE_RETRY_COUNT) {
@@ -278,6 +280,7 @@ class ThirdPartyAgentService @Autowired constructor(
 
             logger.info("Start the build(${build.buildId}) of agent($agentId) and seq(${build.vmSeqId})")
             thirdPartyAgentBuildDao.updateStatus(dslContext, build.id, PipelineTaskStatus.RUNNING, null)
+            TpaHistoryChanges.mark(build.buildId)
 
             try {
                 client.get(ServiceThirdPartyAgentResource::class)
@@ -539,6 +542,7 @@ class ThirdPartyAgentService @Autowired constructor(
             status = if (success) PipelineTaskStatus.DONE else PipelineTaskStatus.FAILURE,
             timeInterval = timeInterval
         )
+        TpaHistoryChanges.mark(record.buildId)
         with(record) {
             pipelineEventDispatcher.dispatch(
                 // 第三方构建机结束
@@ -604,6 +608,7 @@ class ThirdPartyAgentService @Autowired constructor(
                 },
                 timeInterval = null
             )
+            TpaHistoryChanges.mark(buildRecord.buildId)
         }
 
         // #9910 环境构建时遇到启动错误时调度到一个新的Agent

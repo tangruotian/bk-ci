@@ -3,6 +3,10 @@ package com.tencent.devops.dispatch
 import com.tencent.devops.dispatch.dao.ThirdPartyAgentBuildDao
 import com.tencent.devops.dispatch.pojo.enums.PipelineTaskStatus
 import com.tencent.devops.dispatch.service.ThirdPartyAgentBuildService
+import com.tencent.devops.dispatch.service.tpahistory.AgentBuildViewQuery
+import com.tencent.devops.dispatch.service.tpahistory.HistoryAgentBuildViewQuery
+import com.tencent.devops.dispatch.service.tpahistory.LegacyAgentBuildViewQuery
+import com.tencent.devops.dispatch.service.tpahistory.TpaHistorySyncService
 import com.tencent.devops.model.dispatch.tables.records.TDispatchThirdpartyAgentBuildRecord
 import io.mockk.every
 import io.mockk.mockk
@@ -13,9 +17,17 @@ import java.time.LocalDateTime
 
 class OpenApiAgentBuildsTest {
     private val dao = mockk<ThirdPartyAgentBuildDao>()
-    private val service = ThirdPartyAgentBuildService(mockk(), mockk(), dao)
+    private val history = mockk<HistoryAgentBuildViewQuery>()
+    private val sync = mockk<TpaHistorySyncService>()
+    private val service = ThirdPartyAgentBuildService(
+        mockk(), mockk(), dao, LegacyAgentBuildViewQuery(mockk(), dao), history, sync
+    )
     private val running = PipelineTaskStatus.RUNNING.status
     private val done = PipelineTaskStatus.DONE.status
+
+    init {
+        every { sync.readable() } returns false
+    }
 
     @Test
     fun activeStatusIsOneQueryWithExactCountAndInMemoryPaging() {
@@ -39,6 +51,26 @@ class OpenApiAgentBuildsTest {
         assertEquals(0L, page.count)
         assertEquals(0, page.records.size)
         verify(exactly = 0) { dao.countOpenApiBuilds(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun activeStatusStaysRealtimeEvenWhenHistoryIsReadable() {
+        every { sync.readable() } returns true
+        every { dao.listOpenApiBuilds(any(), "a", running, null, 0, 1001) } returns rows(1)
+
+        assertEquals(1L, service.listAgentBuilds("a", "RUNNING", null, 1, 20, realtimeActive = true).count)
+        verify(exactly = 0) { history.listAgentBuilds(any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun pageQueriesUseHistoryOnceReadable() {
+        every { sync.readable() } returns true
+        val query: AgentBuildViewQuery = history
+        every { query.listAgentBuilds("a", running, null, 0, 21) } returns rows(1)
+
+        // 节点详情页不要求实时，运行中也读展示表
+        assertEquals(1L, service.listAgentBuilds("a", "RUNNING", null, 1, 20).count)
+        verify(exactly = 0) { dao.listOpenApiBuilds(any(), any(), any(), any(), any(), any()) }
     }
 
     @Test
