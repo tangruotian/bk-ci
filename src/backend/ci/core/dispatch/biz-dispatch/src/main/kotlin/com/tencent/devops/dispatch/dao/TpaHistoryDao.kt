@@ -162,10 +162,12 @@ class TpaHistoryDao {
             .execute()
 
         change.removedLastId?.let { removed ->
-            // 原最新构建已移出此范围：按构建视图重新取最新的一个，只在视图仍指向原构建时更新，避免覆盖并发写入的更新值
+            // 原最新构建已移出此范围：按构建视图重新取最新的一个，只在视图仍指向原构建时更新，避免覆盖并发写入的更新值。
+            // 必须用加锁读取：事务的一致性快照在读源表时就已建立，普通查询看不到之后其他构建提交的移入、移出，
+            // 可能把指针指向已经移走的构建。加锁读取读最新提交的数据，并等待正在修改这些行的事务结束。
             val top = dslContext.select(B.BUILD_ID, B.PIPELINE_NAME, B.LAST_ID).from(B)
                 .where(B.SCOPE_KEY.eq(change.scopeKey)).and(B.PIPELINE_ID.eq(change.pipelineId))
-                .orderBy(B.LAST_ID.desc()).limit(1).fetchOne()
+                .orderBy(B.LAST_ID.desc()).limit(1).forUpdate().fetchOne()
             if (top != null) {
                 dslContext.update(P)
                     .set(P.PIPELINE_NAME, top[B.PIPELINE_NAME])
@@ -219,12 +221,13 @@ class TpaHistoryDao {
             .execute()
 
         change.removedLastId?.let { removed ->
+            // 同上，加锁读取最新提交的明细
             val top = dslContext.select(H.ID, H.CREATED_TIME, H.VM_SEQ_ID, H.STAGE_ID, H.TASK_NAME, H.PIPELINE_NAME)
                 .from(H)
                 .where(scopeCondition(change.scopeKey))
                 .and(H.PIPELINE_ID.eq(change.pipelineId))
                 .and(H.JOB_ID.eq(change.jobId))
-                .orderBy(H.ID.desc()).limit(1).fetchOne()
+                .orderBy(H.ID.desc()).limit(1).forUpdate().fetchOne()
             if (top != null) {
                 dslContext.update(J)
                     .set(J.PIPELINE_NAME, top[H.PIPELINE_NAME])

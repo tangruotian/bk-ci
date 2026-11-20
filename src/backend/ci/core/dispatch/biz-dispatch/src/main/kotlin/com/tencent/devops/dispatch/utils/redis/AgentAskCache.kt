@@ -35,71 +35,60 @@ import com.tencent.devops.common.redis.RedisOperation
 import com.tencent.devops.dispatch.pojo.thirdpartyagent.BuildJobType
 import com.tencent.devops.environment.pojo.thirdpartyagent.ThirdPartyAgentUpgradeByVersionInfo
 import java.util.Base64
-import java.util.UUID
-import java.util.concurrent.TimeUnit
 import org.apache.commons.codec.digest.DigestUtils
 import org.slf4j.LoggerFactory
-import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.beans.factory.annotation.Value
-import org.springframework.data.redis.core.script.DefaultRedisScript
 import org.springframework.stereotype.Component
 
 /**
- * 每台 agent 的构建空队列和无需升级结果共用一个 Redis Hash。只有两项都启用时才需要 HMGET，
- * 单项用 HGET，两项都不需要时跳过读取。字段各自保存截止时间，整个 Hash 的 TTL 负责回收离线 agent 的 key。
+ * 每台 agent 缓存最近一次查空的构建类型（ALL 也覆盖 BINARY 和 DOCKER），以及最近一次无需升级的上报摘要。
+ * 两项各用一个 key，各自过期，互不影响。
  */
 @Component
 class AgentAskCache(
-    // Lua 的 ARGV 使用字符串编码；HGET、HMGET、HDEL 必须以相同字节编码字段和值。
-    @param:Qualifier("redisStringHashOperation") private val redis: RedisOperation,
+    private val redis: RedisOperation,
     @Value("\${dispatch.agent.emptyQueueCacheSeconds:20}") private val buildTtlSeconds: Long,
     @Value("\${dispatch.agent.noUpgradeCacheSeconds:20}") private val upgradeTtlSeconds: Long
 ) {
-    data class Hits(val buildEmpty: Boolean = false, val noUpgrade: Boolean = false)
-
-    fun read(agentId: String, buildType: BuildJobType, upgradeMarker: String? = null): Hits {
-        val build = buildType != BuildJobType.NONE && buildTtlSeconds > 0
-        val upgrade = upgradeMarker != null && upgradeTtlSeconds > 0
-        if (!build && !upgrade) return Hits()
-        val key = key(agentId)
-        val markers = try {
-            when {
-                build && upgrade -> {
-                    // Redis 对缺失字段按原顺序返回 nil，只使缺失的那一项回源。
-                    val values = redis.hmGet(key, fields)
-                    values.getOrNull(0) to values.getOrNull(1)
-                }
-                build -> redis.hget(key, BUILD) to null
-                else -> null to redis.hget(key, UPGRADE)
+    fun isBuildEmpty(agentId: String, type: BuildJobType): Boolean {
+        if (buildTtlSeconds <= 0 || type == BuildJobType.NONE) return false
+        return try {
+            // TODO: 各构建类型共用一个标记，agent 在 BINARY/DOCKER 之间交替询问时会互相覆盖、降低命中率。
+            //  这类 agent 构建量大、队列多半不空，暂不按类型拆分。
+            val marker = redis.get(buildKey(agentId))
+            val hit = marker == BuildJobType.ALL.name || marker == type.name
+            if (hit) {
+                logger.info("agentEmptyQueueCacheHit agentId={} buildType={}", agentId, type)
             }
+            hit
         } catch (e: Exception) {
-            logger.debug("Unable to read ask cache for agent {}", agentId, e)
-            return Hits()
+            logger.warn("Unable to read empty build queue for agent {}", agentId, e)
+            false
         }
-        val now = System.currentTimeMillis()
-        val buildMarker = activeMarker(markers.first, now)
-        return Hits(
-            buildEmpty = build && (buildMarker == BuildJobType.ALL.name || buildMarker == buildType.name),
-            noUpgrade = upgrade && activeMarker(markers.second, now) == upgradeMarker
-        )
     }
 
-    private fun activeMarker(value: String?, now: Long): String? {
-        if (value == null) return null
-        val separator = value.indexOf(':')
-        if (separator < 0) return null // 查询中的 UUID
-        val expiresAt = value.substring(0, separator).toLongOrNull() ?: return null
-        return if (now < expiresAt) value.substring(separator + 1) else null
+    /**
+     * 并发入队后晚到的查空结果可能重新写入标记，TTL 从本次写入起算。
+     * 被挡住的任务最多晚 TTL 加一次 ask 间隔才被领到。
+     */
+    fun rememberEmpty(agentId: String, type: BuildJobType) {
+        if (buildTtlSeconds <= 0 || type == BuildJobType.NONE) return
+        try {
+            redis.set(buildKey(agentId), type.name, expiredInSecond = buildTtlSeconds)
+        } catch (e: Exception) {
+            logger.warn("Unable to remember empty build queue for agent {}", agentId, e)
+        }
     }
 
-    /** 普通、Docker 与 ALL 共用 build 字段。只有领取查询正常返回空时才确认该类型的空标记。 */
-    fun <T : Any> queryAndRememberEmpty(agentId: String, type: BuildJobType, claim: () -> T?): T? =
-        rememberIf(agentId, BUILD, buildTtlSeconds, type.name, { it == null }, claim)
-
-    /** 入队、改派或超时回队会清除目标 agent 的构建标记，同时作废正在进行的查空确认。 */
+    /**
+     * 入队、改派或超时回队后清除空标记。本实例关闭缓存时也要清，其他实例仍可能持有空标记。
+     *
+     * 任务此时已经入库，Redis 失败只记录日志，不重试也不回滚：旧标记最多残留到过期，
+     * 即该 agent 最多晚 TTL 加一次 ask 间隔才领到这个任务。
+     */
     fun invalidateBuild(agentId: String) {
         try {
-            redis.hdelete(key(agentId), BUILD)
+            redis.delete(buildKey(agentId))
         } catch (e: Exception) {
             logger.warn("Unable to invalidate empty build queue for agent {}", agentId, e)
         }
@@ -115,7 +104,7 @@ class AgentAskCache(
         if (upgradeTtlSeconds <= 0) return null
         return try {
             val inputs = listOf(projectId, DigestUtils.sha256Hex(secretKey), report, props?.arch, props?.osVersion)
-            // 32 字节摘要编码为 43 个 ASCII 字符，加上毫秒截止时间也能控制在 64 字节内。
+            // 32 字节摘要编码为 43 个 ASCII 字符
             encoder.encodeToString(DigestUtils.sha256(JsonUtil.toJson(inputs, formatted = false)))
         } catch (e: Exception) {
             // 无法生成摘要时仍按原流程检查升级，也不影响同一 ask 领取构建。
@@ -124,77 +113,46 @@ class AgentAskCache(
         }
     }
 
+    fun isNoUpgrade(agentId: String, marker: String?): Boolean {
+        if (marker == null || upgradeTtlSeconds <= 0) return false
+        return try {
+            redis.get(upgradeKey(agentId)) == marker
+        } catch (e: Exception) {
+            logger.debug("Unable to read upgrade cache for agent {}", agentId, e)
+            false
+        }
+    }
+
+    /**
+     * 未命中时调用 [load]，只有同一份上报确认无需升级时才记住。
+     * 升级策略在查询期间变化时，旧结果最多保留 TTL，即升级最多晚 TTL 加一次 ask 间隔。
+     */
     fun checkUpgradeOnMiss(
         agentId: String,
         marker: String?,
         load: () -> AgentResult<UpgradeItem>
     ): AgentResult<UpgradeItem> {
-        if (marker == null) return load()
-        return rememberIf(agentId, UPGRADE, upgradeTtlSeconds, marker, { result ->
-            !result.isNotOk() && result.agentStatus == AgentStatus.IMPORT_OK && result.data == NO_UPGRADE.data
-        }, load)
-    }
-
-    private fun <T> rememberIf(
-        agentId: String,
-        field: String,
-        ttlSeconds: Long,
-        marker: String,
-        cacheIf: (T) -> Boolean,
-        load: () -> T
-    ): T {
-        if (ttlSeconds <= 0) return load()
-        val key = key(agentId)
-        val probe = UUID.randomUUID().toString()
-        val ttl = TimeUnit.SECONDS.toMillis(ttlSeconds)
-        val start = System.currentTimeMillis()
-        val deadline = start + ttl.coerceAtMost(Long.MAX_VALUE - start)
-        try {
-            redis.execute(register, listOf(key), field, probe, ttl.toString())
-        } catch (e: Exception) {
-            logger.debug("Unable to register ask cache probe for {}", field, e)
-            return load()
-        }
         val result = load()
-        // 有效期从查询开始算。慢查询即使在另一个字段延长了整个 key 的 TTL 后才返回，也不会重新生效。
-        if (cacheIf(result) && System.currentTimeMillis() < deadline) {
+        if (marker == null || upgradeTtlSeconds <= 0) return result
+        if (!result.isNotOk() && result.agentStatus == AgentStatus.IMPORT_OK && result.data == NO_UPGRADE.data) {
             try {
-                redis.execute(confirm, listOf(key), field, probe, "$deadline:$marker")
+                redis.set(upgradeKey(agentId), marker, expiredInSecond = upgradeTtlSeconds)
             } catch (e: Exception) {
-                logger.debug("Unable to confirm ask cache marker for {}", field, e)
+                logger.debug("Unable to remember upgrade cache for agent {}", agentId, e)
             }
         }
         return result
     }
 
-    private fun key(agentId: String) = redis.getKeyByRedisName("dispatch:agent:askCache:$agentId")
+    // 队列表跨集群共享，空队列标记也按 agent 共享。
+    private fun buildKey(agentId: String) = "dispatch:agent:emptyBuildQueue:$agentId"
+
+    // 升级结果取决于本集群的升级策略，按集群区分。
+    private fun upgradeKey(agentId: String) = redis.getKeyByRedisName("dispatch:agent:noUpgrade:$agentId")
 
     companion object {
         val NO_UPGRADE = AgentResult(AgentStatus.IMPORT_OK, UpgradeItem(false, false, false, false))
-        private const val BUILD = "build"
-        private const val UPGRADE = "upgrade"
-        private val fields = listOf(BUILD, UPGRADE)
         private val encoder = Base64.getUrlEncoder().withoutPadding()
         private val logger = LoggerFactory.getLogger(AgentAskCache::class.java)
-
-        // 只在写入时延长物理 TTL，避免短 TTL 字段提前淘汰另一个字段。热读不会续期。
-        private val register = DefaultRedisScript(
-            """
-            redis.call('HSET', KEYS[1], ARGV[1], ARGV[2])
-            if redis.call('PTTL', KEYS[1]) < tonumber(ARGV[3]) then
-                redis.call('PEXPIRE', KEYS[1], ARGV[3])
-            end
-            return 1
-            """.trimIndent(), Long::class.javaObjectType
-        )
-
-        // 只比较本字段的 UUID。入队的 HDEL 或同字段的下一次查询都能阻止旧结果晚到回写。
-        private val confirm = DefaultRedisScript(
-            """
-            if redis.call('HGET', KEYS[1], ARGV[1]) ~= ARGV[2] then return 0 end
-            redis.call('HSET', KEYS[1], ARGV[1], ARGV[3])
-            return 1
-            """.trimIndent(), Long::class.javaObjectType
-        )
     }
 }

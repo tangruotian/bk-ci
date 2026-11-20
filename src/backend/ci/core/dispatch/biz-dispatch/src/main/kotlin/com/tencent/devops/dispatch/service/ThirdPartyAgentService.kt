@@ -207,7 +207,8 @@ class ThirdPartyAgentService @Autowired constructor(
         secretKey: String,
         buildType: BuildJobType
     ): AgentResult<ThirdPartyBuildInfo?> = withValidatedBuildAgent(projectId, agentId, secretKey) {
-        if (agentAskCache.read(agentId, buildType).buildEmpty) null else {
+        // 独立领取必须先校验密钥和节点状态再读空标记；聚合 ask 已经在提交领取前读过。
+        if (agentAskCache.isBuildEmpty(agentId, buildType)) null else {
             queryQueuedBuild(projectId, agentId, buildType)
         }
     }
@@ -263,19 +264,20 @@ class ThirdPartyAgentService @Autowired constructor(
 
     /**
      * 按 agent 加锁后查询该类型的首个 QUEUE 任务，并在锁内将领到的记录更新为 RUNNING。
-     * 只有 fetchOneQueueBuild 查空才返回 null，供空队列缓存确认结果。
+     * 只有 fetchOneQueueBuild 查空时才记下空标记。
      */
     private fun queryQueuedBuild(
         projectId: String,
         agentId: String,
         buildType: BuildJobType
-    ): ThirdPartyBuildInfo? = agentAskCache.queryAndRememberEmpty(agentId, buildType) {
+    ): ThirdPartyBuildInfo? {
         val redisLock = ThirdPartyAgentLock(redisOperation, projectId, agentId)
         try {
             redisLock.lock()
             val build = thirdPartyAgentBuildDao.fetchOneQueueBuild(dslContext, agentId, buildType) ?: run {
+                agentAskCache.rememberEmpty(agentId, buildType)
                 logger.debug("There is not build by agent($agentId) in queue")
-                return@queryAndRememberEmpty null
+                return null
             }
 
             logger.info("Start the build(${build.buildId}) of agent($agentId) and seq(${build.vmSeqId})")
@@ -359,7 +361,7 @@ class ThirdPartyAgentService @Autowired constructor(
                 buildDockerInfo.credential?.errMsg = errMsg
             }
 
-            ThirdPartyBuildInfo(
+            return ThirdPartyBuildInfo(
                 projectId = build.projectId,
                 buildId = build.buildId,
                 vmSeqId = build.vmSeqId,
@@ -716,9 +718,8 @@ class ThirdPartyAgentService @Autowired constructor(
         val buildType = BuildJobType.toEnum(info.askEnable.build)
         val report = if (info.askEnable.upgrade) info.upgrade else null
         val upgradeMarker = report?.let { agentAskCache.upgradeMarker(projectId, secretKey, it, info.heartbeat.props) }
-        // 心跳已并行执行。请求线程按启用项读取一次缓存，真实领取优先提交，避免排到同一线程池队尾两次。
-        val hits = agentAskCache.read(agentId, buildType, upgradeMarker)
-        val buildF = if (buildType != BuildJobType.NONE && !hits.buildEmpty) {
+        // 心跳已并行执行。请求线程先读缓存，真实领取优先提交，避免排到同一线程池队尾两次。
+        val buildF = if (buildType != BuildJobType.NONE && !agentAskCache.isBuildEmpty(agentId, buildType)) {
             submit {
                 withValidatedBuildAgent(projectId, agentId, secretKey) {
                     queryQueuedBuild(projectId, agentId, buildType)
@@ -730,7 +731,7 @@ class ThirdPartyAgentService @Autowired constructor(
 
         val upgradeF = when {
             report == null -> null
-            hits.noUpgrade -> CompletableFuture.completedFuture(AgentAskCache.NO_UPGRADE)
+            agentAskCache.isNoUpgrade(agentId, upgradeMarker) -> CompletableFuture.completedFuture(AgentAskCache.NO_UPGRADE)
             else -> submit {
                 agentAskCache.checkUpgradeOnMiss(agentId, upgradeMarker) {
                     checkIfCanUpgradeByVersionNew(projectId, agentId, secretKey, report)

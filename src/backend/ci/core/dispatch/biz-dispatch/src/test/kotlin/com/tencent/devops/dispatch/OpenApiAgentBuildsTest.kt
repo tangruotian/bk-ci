@@ -33,7 +33,7 @@ class OpenApiAgentBuildsTest {
     fun activeStatusIsOneQueryWithExactCountAndInMemoryPaging() {
         every { dao.listOpenApiBuilds(any(), "a", running, null, 0, 1001) } returns rows(30, 20, 10)
 
-        val page = service.listAgentBuilds("a", "RUNNING", null, page = 2, pageSize = 2, realtimeActive = true)
+        val page = service.listAgentBuilds("a", "RUNNING", null, page = 2, pageSize = 2, openApi = true)
 
         assertEquals(3L, page.count)
         assertEquals(listOf("b10"), page.records.map { it.buildId })
@@ -46,7 +46,7 @@ class OpenApiAgentBuildsTest {
     fun idleAgentReturnsEmptyWithoutCounting() {
         every { dao.listOpenApiBuilds(any(), "a", PipelineTaskStatus.QUEUE.status, "p", 0, 1001) } returns emptyList()
 
-        val page = service.listAgentBuilds("a", "QUEUE", "p", page = 1, pageSize = 20, realtimeActive = true)
+        val page = service.listAgentBuilds("a", "QUEUE", "p", page = 1, pageSize = 20, openApi = true)
 
         assertEquals(0L, page.count)
         assertEquals(0, page.records.size)
@@ -58,7 +58,18 @@ class OpenApiAgentBuildsTest {
         every { sync.readable() } returns true
         every { dao.listOpenApiBuilds(any(), "a", running, null, 0, 1001) } returns rows(1)
 
-        assertEquals(1L, service.listAgentBuilds("a", "RUNNING", null, 1, 20, realtimeActive = true).count)
+        assertEquals(1L, service.listAgentBuilds("a", "RUNNING", null, 1, 20, openApi = true).count)
+        verify(exactly = 0) { history.listAgentBuilds(any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun openApiHistoryStaysOnTheSourceTableWhenHistoryIsReadable() {
+        every { sync.readable() } returns true
+        // 展示表不同步没有执行次数的旧记录，OpenAPI 查已完成/全部时仍读源表，与原接口数据一致
+        every { dao.listOpenApiBuilds(any(), "a", done, null, 0, 21) } returns rows(1)
+        assertEquals(1L, service.listAgentBuilds("a", "DONE", null, 1, 20, openApi = true).count)
+        every { dao.listOpenApiBuilds(any(), "a", null, null, 0, 21) } returns rows(1)
+        assertEquals(1L, service.listAgentBuilds("a", null, null, 1, 20, openApi = true).count)
         verify(exactly = 0) { history.listAgentBuilds(any(), any(), any(), any(), any()) }
     }
 
@@ -79,7 +90,7 @@ class OpenApiAgentBuildsTest {
         every { dao.listOpenApiBuilds(any(), "a", running, null, 20, 20) } returns rows(5)
         every { dao.countOpenApiBuilds(any(), "a", running, null) } returns 1500L
 
-        val page = service.listAgentBuilds("a", "RUNNING", null, page = 2, pageSize = 20, realtimeActive = true)
+        val page = service.listAgentBuilds("a", "RUNNING", null, page = 2, pageSize = 20, openApi = true)
 
         assertEquals(1500L, page.count)
         assertEquals(listOf("b5"), page.records.map { it.buildId })
@@ -89,7 +100,7 @@ class OpenApiAgentBuildsTest {
     fun historyDerivesTheCountOnTheLastPage() {
         // 首页不满：总数直接得出
         every { dao.listOpenApiBuilds(any(), "a", null, null, 0, 3) } returns rows(9, 8)
-        assertEquals(2L, service.listAgentBuilds("a", null, null, page = 1, pageSize = 2, realtimeActive = true).count)
+        assertEquals(2L, service.listAgentBuilds("a", null, null, page = 1, pageSize = 2, openApi = true).count)
         verify(exactly = 0) { dao.countOpenApiBuilds(any(), any(), any(), any()) }
 
         // 满页需要计数；非空末页直接得出
@@ -97,9 +108,9 @@ class OpenApiAgentBuildsTest {
         every { dao.listOpenApiBuilds(any(), "a", done, null, 2, 3) } returns rows(7, 6, 5)
         every { dao.listOpenApiBuilds(any(), "a", done, null, 4, 3) } returns rows(5)
         every { dao.countOpenApiBuilds(any(), "a", done, null) } returns 5L
-        val first = service.listAgentBuilds("a", "DONE", null, page = 1, pageSize = 2, realtimeActive = true)
-        val second = service.listAgentBuilds("a", "DONE", null, page = 2, pageSize = 2, realtimeActive = true)
-        val last = service.listAgentBuilds("a", "DONE", null, page = 3, pageSize = 2, realtimeActive = true)
+        val first = service.listAgentBuilds("a", "DONE", null, page = 1, pageSize = 2, openApi = true)
+        val second = service.listAgentBuilds("a", "DONE", null, page = 2, pageSize = 2, openApi = true)
+        val last = service.listAgentBuilds("a", "DONE", null, page = 3, pageSize = 2, openApi = true)
         assertEquals(listOf(5L, 5L, 5L), listOf(first.count, second.count, last.count))
         assertEquals(listOf("b9", "b8"), first.records.map { it.buildId })
         assertEquals(listOf("b5"), last.records.map { it.buildId })
@@ -111,7 +122,7 @@ class OpenApiAgentBuildsTest {
         every { dao.listOpenApiBuilds(any(), "a", done, null, 40, 21) } returns emptyList()
         every { dao.countOpenApiBuilds(any(), "a", done, null) } returns 7L
         // 未知状态与原接口一致按 DONE 处理
-        val page = service.listAgentBuilds("a", "unknown", null, page = 3, pageSize = 20, realtimeActive = true)
+        val page = service.listAgentBuilds("a", "unknown", null, page = 3, pageSize = 20, openApi = true)
         assertEquals(7L, page.count)
         assertEquals(0, page.records.size)
     }

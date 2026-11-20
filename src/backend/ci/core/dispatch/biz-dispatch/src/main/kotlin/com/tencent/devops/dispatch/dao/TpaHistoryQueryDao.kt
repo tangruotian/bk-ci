@@ -11,10 +11,12 @@ import com.tencent.devops.model.dispatch.tables.records.TDispatchThirdpartyAgent
 import com.tencent.devops.model.dispatch.tables.records.TDispatchTpaHistoryBuildRecord
 import com.tencent.devops.model.dispatch.tables.records.TDispatchTpaHistoryJobRecord
 import com.tencent.devops.model.dispatch.tables.records.TDispatchTpaHistoryPipelineRecord
+import com.tencent.devops.model.dispatch.tables.records.TDispatchTpaHistoryRecord
 import org.jooq.Condition
 import org.jooq.DSLContext
 import org.jooq.Field
 import org.jooq.SelectLimitStep
+import org.jooq.Table
 import org.jooq.impl.DSL
 import org.springframework.stereotype.Repository
 import java.time.Instant
@@ -56,7 +58,7 @@ class TpaHistoryQueryDao {
             DSL.countDistinct(H.PIPELINE_ID),
             DSL.countDistinct(H.PIPELINE_ID, H.JOB_ID),
             DSL.countDistinct(H.BUILD_ID, H.EXECUTE_COUNT)
-        ).from(H).where(where.conditions()).fetchOne()
+        ).from(where.source()).where(where.conditions()).fetchOne()
         return Triple(
             record?.value1()?.toLong() ?: 0L,
             record?.value2()?.toLong() ?: 0L,
@@ -76,7 +78,7 @@ class TpaHistoryQueryDao {
             DSL.countDistinct(H.BUILD_ID, H.EXECUTE_COUNT),
             DSL.max(H.PROJECT_ID),
             latestOf(H.BUILD_ID)
-        ).from(H).where(where.conditions())
+        ).from(where.source()).where(where.conditions())
             .groupBy(H.PIPELINE_ID)
             .orderBy(DSL.max(H.ID).desc())
             .limit(limit).offset(offset)
@@ -103,7 +105,7 @@ class TpaHistoryQueryDao {
             latestOf(H.VM_SEQ_ID),
             latestOf(H.STAGE_ID),
             DSL.max(H.PROJECT_ID)
-        ).from(H).where(where.conditions()).and(H.JOB_ID.isNotNull)
+        ).from(where.source()).where(where.conditions()).and(H.JOB_ID.isNotNull)
             .groupBy(H.PIPELINE_ID, H.JOB_ID)
             .orderBy(DSL.max(H.ID).desc())
             .limit(limit).offset(offset)
@@ -139,7 +141,7 @@ class TpaHistoryQueryDao {
             DSL.max(H.PIPELINE_NAME),
             DSL.max(H.BUILD_NUM),
             DSL.max(H.PROJECT_ID)
-        ).from(H).where(where.conditions())
+        ).from(where.source()).where(where.conditions())
             .groupBy(H.BUILD_ID, H.EXECUTE_COUNT)
             .orderBy(DSL.max(H.ID).desc())
             .limit(limit).offset(offset)
@@ -149,7 +151,7 @@ class TpaHistoryQueryDao {
     }
 
     fun countRows(dslContext: DSLContext, where: TpaHistoryWhere): Long {
-        return dslContext.selectCount().from(H).where(where.conditions()).fetchOne(0, Long::class.java) ?: 0L
+        return dslContext.selectCount().from(where.source()).where(where.conditions()).fetchOne(0, Long::class.java) ?: 0L
     }
 
     /** 按 ID 倒序取明细，转换为源表的记录类型，字段同名 */
@@ -159,12 +161,12 @@ class TpaHistoryQueryDao {
         offset: Int? = null,
         limit: Int? = null
     ): List<TDispatchThirdpartyAgentBuildRecord> {
-        val select = dslContext.selectFrom(H).where(where.conditions()).orderBy(H.ID.desc())
+        val select = dslContext.selectFrom(where.source()).where(where.conditions()).orderBy(H.ID.desc())
         return select.page(offset, limit).fetch().map { it.into(S) }
     }
 
     fun countBuildGroups(dslContext: DSLContext, where: TpaHistoryWhere): Long {
-        return dslContext.select(DSL.countDistinct(H.BUILD_ID, H.EXECUTE_COUNT)).from(H)
+        return dslContext.select(DSL.countDistinct(H.BUILD_ID, H.EXECUTE_COUNT)).from(where.source())
             .where(where.conditions())
             .fetchOne(0, Long::class.java) ?: 0L
     }
@@ -175,7 +177,7 @@ class TpaHistoryQueryDao {
         offset: Int,
         limit: Int
     ): List<Pair<String, Int?>> {
-        return dslContext.select(H.BUILD_ID, H.EXECUTE_COUNT).from(H)
+        return dslContext.select(H.BUILD_ID, H.EXECUTE_COUNT).from(where.source())
             .where(where.conditions())
             .groupBy(H.BUILD_ID, H.EXECUTE_COUNT)
             .orderBy(DSL.max(H.ID).desc())
@@ -184,7 +186,7 @@ class TpaHistoryQueryDao {
     }
 
     fun pipelineOptionsByRows(dslContext: DSLContext, where: TpaHistoryWhere, keyword: String?): List<Pair<String, String>> {
-        return dslContext.select(H.PIPELINE_ID, DSL.max(H.PIPELINE_NAME)).from(H)
+        return dslContext.select(H.PIPELINE_ID, DSL.max(H.PIPELINE_NAME)).from(where.source())
             .where(where.conditions())
             .and(keyword?.let { H.PIPELINE_NAME.contains(it) } ?: DSL.noCondition())
             .groupBy(H.PIPELINE_ID)
@@ -193,7 +195,7 @@ class TpaHistoryQueryDao {
     }
 
     fun jobOptionsByRows(dslContext: DSLContext, where: TpaHistoryWhere, keyword: String?): List<Pair<String, String>> {
-        return dslContext.select(H.JOB_ID, DSL.max(H.TASK_NAME)).from(H)
+        return dslContext.select(H.JOB_ID, DSL.max(H.TASK_NAME)).from(where.source())
             .where(where.conditions())
             .and(H.JOB_ID.isNotNull)
             .and(keyword?.let { H.TASK_NAME.contains(it) } ?: DSL.noCondition())
@@ -203,7 +205,7 @@ class TpaHistoryQueryDao {
     }
 
     fun creatorOptionsByRows(dslContext: DSLContext, where: TpaHistoryWhere, keyword: String?): List<String> {
-        return dslContext.selectDistinct(H.START_USER).from(H)
+        return dslContext.selectDistinct(H.START_USER).from(where.source())
             .where(where.conditions())
             .and(H.START_USER.isNotNull)
             .and(keyword?.let { H.START_USER.contains(it) } ?: DSL.noCondition())
@@ -251,7 +253,7 @@ class TpaHistoryQueryDao {
         jobId: String
     ): Long {
         if (pipelineIds.isEmpty()) return 0L
-        return dslContext.select(DSL.countDistinct(H.BUILD_ID, H.EXECUTE_COUNT)).from(H)
+        return dslContext.select(DSL.countDistinct(H.BUILD_ID, H.EXECUTE_COUNT)).from(where.source())
             .where(where.conditions())
             .and(H.PIPELINE_ID.`in`(pipelineIds))
             .and(H.JOB_ID.eq(jobId))
@@ -350,6 +352,20 @@ class TpaHistoryQueryDao {
             .fetch(B.START_USER)
     }
 
+    /**
+     * 按时间筛选时强制走 (范围, CREATED_TIME) 索引：范围内的数据都在同一个 AGENT_ID / ENV_KEY 下，
+     * 优化器会改用 IDX_*_PIPELINE_JOB 的等值查找，读出整个范围后再按时间过滤（实测 7 天窗口多读 7 倍以上的行）。
+     * 指定了构建、流水线或 Job 时这些条件更精确，交给优化器选择。
+     */
+    private fun TpaHistoryWhere.source(): Table<TDispatchTpaHistoryRecord> {
+        if ((startTime == null && endTime == null) || buildIds != null ||
+            !pipelineId.isNullOrBlank() || !jobId.isNullOrBlank()
+        ) {
+            return H
+        }
+        return H.forceIndex(if (agentId != null) IDX_AGENT_TIME else IDX_ENV_TIME)
+    }
+
     private fun TpaHistoryWhere.conditions(): List<Condition> = listOfNotNull(
         agentId?.let { H.AGENT_ID.eq(it) },
         envKey?.let { H.ENV_KEY.eq(it) },
@@ -358,7 +374,7 @@ class TpaHistoryQueryDao {
         pipelineId?.takeIf { it.isNotBlank() }?.let { H.PIPELINE_ID.eq(it) },
         jobId?.takeIf { it.isNotBlank() }?.let { H.JOB_ID.eq(it) },
         creator?.takeIf { it.isNotBlank() }?.let { H.START_USER.eq(it) },
-        status?.takeIf { it.isNotEmpty() }?.let { H.STATUS.`in`(it) },
+        status?.let { H.STATUS.`in`(it) },
         buildIds?.let { H.BUILD_ID.`in`(it) },
         executeCount?.let { H.EXECUTE_COUNT.eq(it) }
     )
@@ -375,6 +391,8 @@ class TpaHistoryQueryDao {
         private val P = TDispatchTpaHistoryPipeline.T_DISPATCH_TPA_HISTORY_PIPELINE
         private val J = TDispatchTpaHistoryJob.T_DISPATCH_TPA_HISTORY_JOB
         private const val FLAG: Byte = 1
+        private const val IDX_AGENT_TIME = "IDX_AGENT_TIME"
+        private const val IDX_ENV_TIME = "IDX_ENV_TIME"
         private val FINISHED = listOf(PipelineTaskStatus.DONE.status, PipelineTaskStatus.FAILURE.status)
 
         /** 分组内按 ID 倒序取第一个值，即最新一行的值 */

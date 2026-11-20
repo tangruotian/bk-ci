@@ -234,8 +234,9 @@ class HistoryAgentBuildViewQuery @Autowired constructor(
         executeCount = executeCount
     )
 
+    // 显式传空状态列表与原查询一致（IN () 不匹配任何行），不能当作不筛选走汇总表
     private fun AgentBuildFilter.aggregatable() =
-        startTime == null && endTime == null && creator.isNullOrBlank() && status.isNullOrEmpty()
+        startTime == null && endTime == null && creator.isNullOrBlank() && status == null
 
     private fun String?.orNullIfBlank() = this?.takeIf { it.isNotBlank() }
 

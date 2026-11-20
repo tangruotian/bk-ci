@@ -53,14 +53,14 @@ class ServiceAgentResourceImpl @Autowired constructor(
         pageSize: Int?,
         openApi: Boolean?
     ): Page<AgentBuildInfo> {
-        // OpenAPI 用于定时判断构建机是否空闲，排队中/运行中直接读源表保证实时；其余查询走构建记录展示表
+        // OpenAPI 始终读源表：排队中/运行中保证实时，其余状态与原接口数据一致；节点详情页走构建记录展示表
         return thirdPartyAgentBuildService.listAgentBuilds(
             agentId = agentId,
             status = status,
             pipelineId = pipelineId,
             page = page,
             pageSize = pageSize,
-            realtimeActive = openApi == true
+            openApi = openApi == true
         )
     }
 

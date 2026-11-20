@@ -430,7 +430,8 @@ class ThirdPartyAgentBuildService @Autowired constructor(
 
     /**
      * 单个构建机的任务列表（节点详情页、OpenAPI 共用），同构建机同 Job 只取最新一行，带状态时取该状态下的最新一行。
-     * @param realtimeActive 为 true 时，排队中/运行中的查询直接读源表，结果实时。OpenAPI 用于定时判断构建机是否空闲
+     * @param openApi 为 true 时始终读源表：排队中/运行中结果实时（定时判断构建机是否空闲），
+     * 其余状态也保留展示表不同步的历史数据（没有执行次数的旧记录），与原接口一致
      */
     fun listAgentBuilds(
         agentId: String,
@@ -438,17 +439,24 @@ class ThirdPartyAgentBuildService @Autowired constructor(
         pipelineId: String?,
         page: Int?,
         pageSize: Int?,
-        realtimeActive: Boolean = false
+        openApi: Boolean = false
     ): Page<AgentBuildInfo> {
         val pageNotNull = page ?: 0
         val pageSizeNotNull = pageSize ?: PageUtil.MAX_PAGE_SIZE
         val sqlLimit = PageUtil.convertPageSizeToSQLMAXLimit(pageNotNull, pageSizeNotNull)
         val taskStatus = status?.let { PipelineTaskStatus.parse(it) }
         val activeStatus = taskStatus?.takeIf { it == PipelineTaskStatus.QUEUE || it == PipelineTaskStatus.RUNNING }
-        val (count, records) = if (realtimeActive && activeStatus != null) {
-            listActiveBuilds(agentId, activeStatus.status, pipelineId, sqlLimit.offset, sqlLimit.limit)
-        } else {
-            listBuildsWithCount(viewQuery(), agentId, taskStatus?.status, pipelineId, sqlLimit.offset, sqlLimit.limit)
+        val (count, records) = when {
+            openApi && activeStatus != null ->
+                listActiveBuilds(agentId, activeStatus.status, pipelineId, sqlLimit.offset, sqlLimit.limit)
+            else -> listBuildsWithCount(
+                query = if (openApi) legacyQuery else viewQuery(),
+                agentId = agentId,
+                status = taskStatus?.status,
+                pipelineId = pipelineId,
+                offset = sqlLimit.offset,
+                limit = sqlLimit.limit
+            )
         }
         return Page(pageNotNull, pageSizeNotNull, count, records.map { it.toAgentBuildInfo() })
     }

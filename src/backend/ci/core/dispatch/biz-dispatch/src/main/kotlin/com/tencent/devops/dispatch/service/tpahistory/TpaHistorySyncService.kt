@@ -14,12 +14,15 @@ import org.springframework.stereotype.Service
 import java.sql.SQLException
 import java.time.LocalDateTime
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.ThreadLocalRandom
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 import jakarta.annotation.PostConstruct
 import jakarta.annotation.PreDestroy
 
@@ -61,6 +64,9 @@ class TpaHistorySyncService @Autowired constructor(
         LinkedBlockingQueue(WORKER_QUEUE), named("tpa-history-sync"), ThreadPoolExecutor.CallerRunsPolicy()
     )
 
+    /** 因死锁、锁超时等重试的次数，用于观察锁冲突 */
+    internal val retries = AtomicLong()
+
     /** 回填已追上部署时的源表进度，查询可以使用展示表 */
     fun readable() = readEnabled && readable
 
@@ -92,7 +98,9 @@ class TpaHistorySyncService @Autowired constructor(
 
     /**
      * 在一个事务内同步一个构建：先锁住明细中该构建的行，再读取源表，比较后写入明细和各视图的增量。
-     * 死锁、锁超时、主键冲突（并发同步同一个新构建）时整体重试。
+     * 两个事务同步同一个新构建时，加锁查询都拿到同一个间隙锁，插入时由 InnoDB 判定死锁并回滚其中一个，
+     * 重试时就能读到已提交的明细，因此不会重复计数。不同构建落在同一间隙时也会这样互相回滚（首次回填时明细表为空，
+     * 所有插入都在同一间隙），死锁、锁超时、主键冲突都按随机退避重试。
      */
     fun syncBuild(buildId: String) {
         var attempt = 0
@@ -112,37 +120,52 @@ class TpaHistorySyncService @Autowired constructor(
                 if (++attempt >= MAX_ATTEMPTS || !isRetryable(e)) {
                     throw e
                 }
+                retries.incrementAndGet()
+                Thread.sleep(ThreadLocalRandom.current().nextLong(RETRY_BACKOFF_MS * attempt, RETRY_BACKOFF_MS * attempt * 2))
             }
         }
     }
 
-    /** 并发同步一批构建并等待完成，单个构建失败只记录日志 */
-    fun syncBuilds(buildIds: Collection<String>) {
-        if (buildIds.isEmpty()) return
+    /**
+     * 并发同步一批构建并等待完成。并发失败的构建再串行重试一次，避开工作线程之间的锁冲突。
+     * @return 仍然失败的构建
+     */
+    fun syncBuilds(buildIds: Collection<String>): Set<String> {
+        if (buildIds.isEmpty()) return emptySet()
+        val failed: MutableSet<String> = ConcurrentHashMap.newKeySet()
         CompletableFuture.allOf(
             *buildIds.map { buildId ->
                 CompletableFuture.runAsync({
-                    try {
-                        syncBuild(buildId)
-                    } catch (e: Exception) {
-                        logger.warn("tpa history sync failed|$buildId", e)
-                    }
+                    if (!trySync(buildId, warn = false)) failed.add(buildId)
                 }, pool)
             }.toTypedArray()
         ).join()
+        return failed.filterNot { trySync(it, warn = true) }.toSet()
+    }
+
+    private fun trySync(buildId: String, warn: Boolean): Boolean = try {
+        syncBuild(buildId)
+        true
+    } catch (e: Exception) {
+        if (warn) logger.warn("tpa history sync failed|$buildId", e)
+        false
     }
 
     internal fun drainChanges() {
+        val failed = mutableSetOf<String>()
         while (true) {
             val buildIds = TpaHistoryChanges.drain(DRAIN_BATCH)
-            if (buildIds.isEmpty()) return
-            syncBuilds(buildIds)
+            if (buildIds.isEmpty()) break
+            failed.addAll(syncBuilds(buildIds))
         }
+        // 下一轮再试；新构建的行还会被新数据扫描覆盖，进行中的行会被复查覆盖
+        failed.forEach { TpaHistoryChanges.mark(it) }
     }
 
     /**
      * 按主键扫描源表的新行：首次运行记录当时的最大 ID 作为回填目标，游标追上目标后查询切换到展示表。
-     * 之后持续扫描，补齐实时同步丢失的新行（例如节点重启）。单个构建失败不阻塞游标。
+     * 之后持续扫描，补齐实时同步丢失的新行（例如节点重启）。
+     * 有构建同步失败时，游标停在它的第一行之前，下一轮从这里重新扫描（同步可重复执行），不会漏掉数据。
      */
     internal fun scanNewRows() {
         val target = historyDao.getProgress(dslContext, BACKFILL_TARGET)
@@ -157,7 +180,13 @@ class TpaHistorySyncService @Autowired constructor(
                 limit = scanBatchSize
             )
             if (rows.isEmpty()) break
-            syncBuilds(rows.map { it.second }.distinct())
+            val failed = syncBuilds(rows.map { it.second }.distinct())
+            if (failed.isNotEmpty()) {
+                val firstFailed = rows.first { it.second in failed }.first
+                if (firstFailed - 1 > cursor) historyDao.setProgress(dslContext, SCAN_CURSOR, firstFailed - 1)
+                logger.warn("tpa history scan stopped at $firstFailed|${failed.size} builds failed")
+                break
+            }
             cursor = rows.last().first
             historyDao.setProgress(dslContext, SCAN_CURSOR, cursor)
             if (cursor < target) {
@@ -231,7 +260,8 @@ class TpaHistorySyncService @Autowired constructor(
         private const val ORPHAN_LOCK = "dispatch:tpaHistory:orphan"
         private const val LOCK_SECONDS = 120L
 
-        private const val MAX_ATTEMPTS = 3
+        private const val MAX_ATTEMPTS = 8
+        private const val RETRY_BACKOFF_MS = 20L
         private const val TIMER_THREADS = 4
         private const val WORKER_QUEUE = 2000
         private const val DRAIN_BATCH = 200
